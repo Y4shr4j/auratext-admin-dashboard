@@ -17,6 +17,6 @@
     }
   ],
   "env": {
-    "VITE_API_URL": "https://auratext-admin-backend.vercel.app"
+    "VITE_API_URL": "https://auratext-admin-dashboard.vercel.app"
   }
 }
