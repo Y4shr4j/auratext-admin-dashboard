@@ -43,6 +43,12 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // Favicon handler
+  if (req.url === '/favicon.ico' && req.method === 'GET') {
+    res.status(204).end(); // No content but successful
+    return;
+  }
+
   // Root endpoint
   if (req.url === '/' && req.method === 'GET') {
     return res.json({
