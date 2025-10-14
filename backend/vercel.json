@@ -12,8 +12,7 @@
     }
   ],
   "env": {
-    "API_KEY": "auratext_secret_key_2024_launch_secure",
-    "POSTGRES_URL": "@postgres_url"
+    "API_KEY": "auratext_secret_key_2024_launch_secure"
   },
   "buildCommand": "npm install",
   "outputDirectory": ""
