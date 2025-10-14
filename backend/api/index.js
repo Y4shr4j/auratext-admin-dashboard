@@ -1,7 +1,116 @@
 // AuraText Analytics API Serverless Function
 // This includes all endpoints from server.js adapted for Vercel
 
+const { Pool } = require('pg');
+require('dotenv').config();
+
+// Database configuration for PostgreSQL
+const dbConfig = {
+  connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  },
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+};
+
+// Create connection pool
+let pool = null;
+const getPool = () => {
+  if (!pool) {
+    pool = new Pool(dbConfig);
+  }
+  return pool;
+};
+
+// Initialize database tables
+const initializeDatabase = async () => {
+  const pool = getPool();
+  
+  try {
+    // Create text_replacements table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS text_replacements (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255),
+        app_version VARCHAR(50),
+        os VARCHAR(50),
+        success BOOLEAN,
+        method VARCHAR(50),
+        target_app VARCHAR(100),
+        text_length INT,
+        response_time INT,
+        user_agent TEXT,
+        ip_address VARCHAR(45),
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create indexes
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_id ON text_replacements (user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_timestamp ON text_replacements (timestamp)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_success ON text_replacements (success)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_target_app ON text_replacements (target_app)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_method ON text_replacements (method)`);
+
+    // Create errors table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS errors (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255),
+        app_version VARCHAR(50),
+        os VARCHAR(50),
+        error_type VARCHAR(100),
+        error_message TEXT,
+        target_app VARCHAR(100),
+        stack_trace TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create indexes for errors table
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_errors_user_id ON errors (user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_errors_timestamp ON errors (timestamp)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_errors_type ON errors (error_type)`);
+
+    // Create user_actions table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_actions (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255),
+        action_type VARCHAR(100),
+        target_app VARCHAR(100),
+        app_version VARCHAR(50),
+        os VARCHAR(50),
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create indexes for user_actions table
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_actions_user_id ON user_actions (user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_actions_timestamp ON user_actions (timestamp)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_actions_type ON user_actions (action_type)`);
+
+    console.log('Database tables initialized successfully');
+  } catch (error) {
+    console.error('Error initializing database:', error);
+    // Don't throw error in serverless function, just log it
+  }
+};
+
+// Initialize database on first load
+let dbInitialized = false;
+const ensureDatabaseInitialized = async () => {
+  if (!dbInitialized) {
+    await initializeDatabase();
+    dbInitialized = true;
+  }
+};
+
 module.exports = async (req, res) => {
+  // Ensure database is initialized
+  await ensureDatabaseInitialized();
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -62,13 +171,27 @@ module.exports = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    // Return mock data for now (you can replace with real database queries)
-    return res.json({
-      totalReplacements: 1250,
-      uniqueUsers: 45,
-      totalErrors: 23,
-      avgResponseTime: 145
-    });
+    try {
+      const pool = getPool();
+      const queries = [
+        'SELECT COUNT(*) as total_replacements FROM text_replacements',
+        'SELECT COUNT(DISTINCT user_id) as unique_users FROM text_replacements',
+        'SELECT COUNT(*) as total_errors FROM errors',
+        'SELECT AVG(response_time) as avg_response_time FROM text_replacements WHERE response_time IS NOT NULL'
+      ];
+
+      const results = await Promise.all(queries.map(query => pool.query(query)));
+      
+      return res.json({
+        totalReplacements: parseInt(results[0].rows[0].total_replacements) || 0,
+        uniqueUsers: parseInt(results[1].rows[0].unique_users) || 0,
+        totalErrors: parseInt(results[2].rows[0].total_errors) || 0,
+        avgResponseTime: Math.round(parseFloat(results[3].rows[0].avg_response_time) || 0)
+      });
+    } catch (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
   }
 
   // Metrics usage endpoint
@@ -77,19 +200,23 @@ module.exports = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    // Return mock usage data
-    const mockUsage = [];
-    const today = new Date();
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      mockUsage.push({
-        date: date.toISOString().split('T')[0],
-        replacements: Math.floor(Math.random() * 50) + 10,
-        unique_users: Math.floor(Math.random() * 20) + 5
-      });
+    try {
+      const pool = getPool();
+      const result = await pool.query(`
+        SELECT 
+          DATE(timestamp) as date,
+          COUNT(*) as replacements,
+          COUNT(DISTINCT user_id) as unique_users
+        FROM text_replacements 
+        WHERE timestamp >= NOW() - INTERVAL '30 days'
+        GROUP BY DATE(timestamp) 
+        ORDER BY date DESC
+      `);
+      return res.json(result.rows || []);
+    } catch (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
     }
-    return res.json(mockUsage);
   }
 
   // Metrics errors endpoint
@@ -98,23 +225,27 @@ module.exports = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    // Return mock error data
-    return res.json([
-      {
-        error_type: 'TextReplacementError',
-        error_message: 'Failed to replace text in target application',
-        target_app: 'notepad.exe',
-        user_id: 'user_123',
-        timestamp: new Date().toISOString()
-      },
-      {
-        error_type: 'PermissionError',
-        error_message: 'Insufficient permissions to access target window',
-        target_app: 'WINWORD.EXE',
-        user_id: 'user_456',
-        timestamp: new Date(Date.now() - 3600000).toISOString()
-      }
-    ]);
+    const limit = req.url.includes('?') ? 
+      new URLSearchParams(req.url.split('?')[1]).get('limit') || 10 : 10;
+
+    try {
+      const pool = getPool();
+      const result = await pool.query(`
+        SELECT 
+          error_type,
+          error_message,
+          target_app,
+          timestamp,
+          user_id
+        FROM errors 
+        ORDER BY timestamp DESC 
+        LIMIT $1
+      `, [parseInt(limit)]);
+      return res.json(result.rows || []);
+    } catch (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
   }
 
   // Metrics users endpoint
@@ -123,27 +254,24 @@ module.exports = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    // Return mock user data
-    return res.json([
-      {
-        user_id: 'user_123',
-        replacement_count: 245,
-        avg_response_time: 120,
-        last_seen: new Date().toISOString()
-      },
-      {
-        user_id: 'user_456',
-        replacement_count: 189,
-        avg_response_time: 156,
-        last_seen: new Date(Date.now() - 7200000).toISOString()
-      },
-      {
-        user_id: 'user_789',
-        replacement_count: 134,
-        avg_response_time: 98,
-        last_seen: new Date(Date.now() - 86400000).toISOString()
-      }
-    ]);
+    try {
+      const pool = getPool();
+      const result = await pool.query(`
+        SELECT 
+          user_id,
+          COUNT(*) as replacement_count,
+          AVG(response_time) as avg_response_time,
+          MAX(timestamp) as last_seen
+        FROM text_replacements 
+        GROUP BY user_id 
+        ORDER BY replacement_count DESC 
+        LIMIT 10
+      `);
+      return res.json(result.rows || []);
+    } catch (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
   }
 
   // Metrics apps endpoint
@@ -152,30 +280,25 @@ module.exports = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    // Return mock app data
-    return res.json([
-      {
-        target_app: 'notepad.exe',
-        usage_count: 456,
-        unique_users: 23,
-        avg_response_time: 120,
-        success_rate: 94.5
-      },
-      {
-        target_app: 'WINWORD.EXE',
-        usage_count: 389,
-        unique_users: 18,
-        avg_response_time: 145,
-        success_rate: 91.2
-      },
-      {
-        target_app: 'EXCEL.EXE',
-        usage_count: 234,
-        unique_users: 12,
-        avg_response_time: 167,
-        success_rate: 88.9
-      }
-    ]);
+    try {
+      const pool = getPool();
+      const result = await pool.query(`
+        SELECT 
+          target_app,
+          COUNT(*) as usage_count,
+          COUNT(DISTINCT user_id) as unique_users,
+          AVG(response_time) as avg_response_time,
+          (SUM(CASE WHEN success = true THEN 1 ELSE 0 END)::float / COUNT(*) * 100) as success_rate
+        FROM text_replacements 
+        GROUP BY target_app 
+        ORDER BY usage_count DESC 
+        LIMIT 20
+      `);
+      return res.json(result.rows || []);
+    } catch (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
   }
 
   // Metrics methods endpoint
@@ -184,27 +307,23 @@ module.exports = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    // Return mock method data
-    return res.json([
-      {
-        method: 'Win32DirectReplacer',
-        usage_count: 567,
-        avg_response_time: 120,
-        success_rate: 95.2
-      },
-      {
-        method: 'TextPatternReplacer',
-        usage_count: 423,
-        avg_response_time: 145,
-        success_rate: 92.1
-      },
-      {
-        method: 'ClipboardReplacer',
-        usage_count: 189,
-        avg_response_time: 98,
-        success_rate: 88.5
-      }
-    ]);
+    try {
+      const pool = getPool();
+      const result = await pool.query(`
+        SELECT 
+          method,
+          COUNT(*) as usage_count,
+          AVG(response_time) as avg_response_time,
+          (SUM(CASE WHEN success = true THEN 1 ELSE 0 END)::float / COUNT(*) * 100) as success_rate
+        FROM text_replacements 
+        GROUP BY method 
+        ORDER BY usage_count DESC
+      `);
+      return res.json(result.rows || []);
+    } catch (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
   }
 
   // Metrics real-time endpoint
@@ -213,18 +332,24 @@ module.exports = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    // Return mock real-time data (last hour)
-    const mockRealTime = [];
-    const now = new Date();
-    for (let i = 59; i >= 0; i--) {
-      const minute = new Date(now.getTime() - i * 60000);
-      mockRealTime.push({
-        minute: minute.toISOString().slice(0, 16) + ':00',
-        replacements: Math.floor(Math.random() * 10),
-        unique_users: Math.floor(Math.random() * 5) + 1
-      });
+    try {
+      const pool = getPool();
+      const result = await pool.query(`
+        SELECT 
+          DATE_TRUNC('minute', timestamp) as minute,
+          COUNT(*) as replacements,
+          COUNT(DISTINCT user_id) as unique_users
+        FROM text_replacements 
+        WHERE timestamp >= NOW() - INTERVAL '1 hour'
+        GROUP BY DATE_TRUNC('minute', timestamp)
+        ORDER BY minute DESC
+        LIMIT 60
+      `);
+      return res.json(result.rows || []);
+    } catch (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
     }
-    return res.json(mockRealTime);
   }
 
   // Analytics tracking endpoints
@@ -232,24 +357,69 @@ module.exports = async (req, res) => {
     if (!authenticate(req)) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
-    // In a real implementation, you would save to database
-    return res.json({ success: true, id: Date.now() });
+    
+    const { userId, appVersion, os, success, method, targetApp, textLength, responseTime, userAgent, ipAddress } = req.body;
+    
+    try {
+      const pool = getPool();
+      const result = await pool.query(
+        `INSERT INTO text_replacements (user_id, app_version, os, success, method, target_app, text_length, response_time, user_agent, ip_address)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        [userId, appVersion, os, success, method, targetApp, textLength, responseTime, userAgent, ipAddress]
+      );
+      
+      console.log(`✅ Text replacement tracked: User ${userId}, App ${targetApp}, Success: ${success}`);
+      return res.json({ success: true, id: result.rows[0].id });
+    } catch (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
   }
 
   if (req.url === '/api/analytics/error' && req.method === 'POST') {
     if (!authenticate(req)) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
-    // In a real implementation, you would save to database
-    return res.json({ success: true, id: Date.now() });
+    
+    const { userId, appVersion, os, errorType, errorMessage, targetApp, stackTrace } = req.body;
+    
+    try {
+      const pool = getPool();
+      const result = await pool.query(
+        `INSERT INTO errors (user_id, app_version, os, error_type, error_message, target_app, stack_trace)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [userId, appVersion, os, errorType, errorMessage, targetApp, stackTrace]
+      );
+      
+      console.log(`❌ Error tracked: ${errorType} - ${errorMessage}`);
+      return res.json({ success: true, id: result.rows[0].id });
+    } catch (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
   }
 
   if (req.url === '/api/analytics/user-action' && req.method === 'POST') {
     if (!authenticate(req)) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
-    // In a real implementation, you would save to database
-    return res.json({ success: true, id: Date.now() });
+    
+    const { userId, actionType, targetApp, appVersion, os } = req.body;
+    
+    try {
+      const pool = getPool();
+      const result = await pool.query(
+        `INSERT INTO user_actions (user_id, action_type, target_app, app_version, os)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [userId, actionType, targetApp, appVersion, os]
+      );
+      
+      console.log(`📊 User action tracked: ${actionType} by ${userId}`);
+      return res.json({ success: true, id: result.rows[0].id });
+    } catch (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
   }
 
   // Default 404
