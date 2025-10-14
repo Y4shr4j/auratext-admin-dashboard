@@ -19,8 +19,8 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Database setup
-const dbPath = path.join(__dirname, 'analytics.db');
+// Database setup - Use /tmp for Vercel serverless
+const dbPath = path.join('/tmp', 'analytics.db');
 const db = new sqlite3.Database(dbPath);
 
 // Initialize database tables
