@@ -44,6 +44,9 @@ function App() {
 
   const fetchData = async () => {
     try {
+      console.log('API_BASE_URL:', API_BASE_URL);
+      console.log('Trying to fetch from:', `${API_BASE_URL}/api/metrics/overview`);
+      
       const headers = {
         'Authorization': `Bearer ${API_KEY}`
       };
@@ -60,7 +63,8 @@ function App() {
       setLoading(false);
     } catch (err) {
       console.error('Error fetching data:', err);
-      setError(err.message);
+      console.error('Full error:', err.response?.data || err.message);
+      setError(`Connection failed: ${err.response?.status || 'Network Error'} - ${err.response?.data?.message || err.message}`);
       setLoading(false);
     }
   };
