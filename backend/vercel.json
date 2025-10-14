@@ -14,7 +14,9 @@
   ],
   "env": {
     "API_KEY": "auratext_secret_key_2024_launch_secure",
-    "DATABASE_PATH": "/tmp/analytics.db",
-    "CORS_ORIGIN": "*"
+    "DB_HOST": "@db_host",
+    "DB_USER": "@db_user", 
+    "DB_PASSWORD": "@db_password",
+    "DB_NAME": "@db_name"
   }
 }
