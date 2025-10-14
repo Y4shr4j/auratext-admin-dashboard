@@ -42,10 +42,14 @@ const initializeDatabase = async () => {
         target_app VARCHAR(100),
         text_length INT,
         response_time INT,
+        user_agent TEXT,
+        ip_address VARCHAR(45),
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_user_id (user_id),
         INDEX idx_timestamp (timestamp),
-        INDEX idx_success (success)
+        INDEX idx_success (success),
+        INDEX idx_target_app (target_app),
+        INDEX idx_method (method)
       )
     `);
 

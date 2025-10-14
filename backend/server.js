@@ -41,15 +41,19 @@ app.get('/api/health', (req, res) => {
 
 // Analytics endpoints
 app.post('/api/analytics/text-replacement', authenticate, async (req, res) => {
-  const { userId, appVersion, os, success, method, targetApp, textLength, responseTime } = req.body;
+  const { userId, appVersion, os, success, method, targetApp, textLength, responseTime, userAgent, ipAddress } = req.body;
   
   try {
     const pool = getPool();
     const [result] = await pool.execute(
-      `INSERT INTO text_replacements (user_id, app_version, os, success, method, target_app, text_length, response_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [userId, appVersion, os, success, method, targetApp, textLength, responseTime]
+      `INSERT INTO text_replacements (user_id, app_version, os, success, method, target_app, text_length, response_time, user_agent, ip_address)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, appVersion, os, success, method, targetApp, textLength, responseTime, userAgent, ipAddress]
     );
+    
+    // Log successful tracking
+    console.log(`✅ Text replacement tracked: User ${userId}, App ${targetApp}, Success: ${success}`);
+    
     res.json({ success: true, id: result.insertId });
   } catch (err) {
     console.error('Database error:', err);
@@ -172,6 +176,70 @@ app.get('/api/metrics/errors', authenticate, async (req, res) => {
       ORDER BY timestamp DESC 
       LIMIT ?
     `, [limit]);
+    res.json(rows || []);
+  } catch (err) {
+    console.error('Database error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Advanced Analytics Endpoints
+app.get('/api/metrics/apps', authenticate, async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(`
+      SELECT 
+        target_app,
+        COUNT(*) as usage_count,
+        COUNT(DISTINCT user_id) as unique_users,
+        AVG(response_time) as avg_response_time,
+        SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) / COUNT(*) * 100 as success_rate
+      FROM text_replacements 
+      GROUP BY target_app 
+      ORDER BY usage_count DESC 
+      LIMIT 20
+    `);
+    res.json(rows || []);
+  } catch (err) {
+    console.error('Database error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.get('/api/metrics/methods', authenticate, async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(`
+      SELECT 
+        method,
+        COUNT(*) as usage_count,
+        AVG(response_time) as avg_response_time,
+        SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) / COUNT(*) * 100 as success_rate
+      FROM text_replacements 
+      GROUP BY method 
+      ORDER BY usage_count DESC
+    `);
+    res.json(rows || []);
+  } catch (err) {
+    console.error('Database error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.get('/api/metrics/real-time', authenticate, async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(`
+      SELECT 
+        DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00') as minute,
+        COUNT(*) as replacements,
+        COUNT(DISTINCT user_id) as unique_users
+      FROM text_replacements 
+      WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+      GROUP BY DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')
+      ORDER BY minute DESC
+      LIMIT 60
+    `);
     res.json(rows || []);
   } catch (err) {
     console.error('Database error:', err);
