@@ -1,18 +1,15 @@
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 require('dotenv').config();
 
-// Database configuration
+// Database configuration for PostgreSQL
 const dbConfig = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
   },
-  connectionLimit: 10,
-  acquireTimeout: 60000,
-  timeout: 60000
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 };
 
 // Create connection pool
@@ -20,7 +17,7 @@ let pool = null;
 
 const getPool = () => {
   if (!pool) {
-    pool = mysql.createPool(dbConfig);
+    pool = new Pool(dbConfig);
   }
   return pool;
 };
@@ -31,9 +28,9 @@ const initializeDatabase = async () => {
   
   try {
     // Create text_replacements table
-    await pool.execute(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS text_replacements (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         user_id VARCHAR(255),
         app_version VARCHAR(50),
         os VARCHAR(50),
@@ -44,19 +41,21 @@ const initializeDatabase = async () => {
         response_time INT,
         user_agent TEXT,
         ip_address VARCHAR(45),
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_user_id (user_id),
-        INDEX idx_timestamp (timestamp),
-        INDEX idx_success (success),
-        INDEX idx_target_app (target_app),
-        INDEX idx_method (method)
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
+    // Create indexes
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_id ON text_replacements (user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_timestamp ON text_replacements (timestamp)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_success ON text_replacements (success)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_target_app ON text_replacements (target_app)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_method ON text_replacements (method)`);
+
     // Create errors table
-    await pool.execute(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS errors (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         user_id VARCHAR(255),
         app_version VARCHAR(50),
         os VARCHAR(50),
@@ -64,28 +63,32 @@ const initializeDatabase = async () => {
         error_message TEXT,
         target_app VARCHAR(100),
         stack_trace TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_user_id (user_id),
-        INDEX idx_timestamp (timestamp),
-        INDEX idx_error_type (error_type)
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
+    // Create indexes for errors table
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_errors_user_id ON errors (user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_errors_timestamp ON errors (timestamp)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_errors_type ON errors (error_type)`);
+
     // Create user_actions table
-    await pool.execute(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS user_actions (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         user_id VARCHAR(255),
         action_type VARCHAR(100),
         target_app VARCHAR(100),
         app_version VARCHAR(50),
         os VARCHAR(50),
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_user_id (user_id),
-        INDEX idx_timestamp (timestamp),
-        INDEX idx_action_type (action_type)
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Create indexes for user_actions table
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_actions_user_id ON user_actions (user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_actions_timestamp ON user_actions (timestamp)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_actions_type ON user_actions (action_type)`);
 
     console.log('Database tables initialized successfully');
   } catch (error) {

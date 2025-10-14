@@ -45,16 +45,16 @@ app.post('/api/analytics/text-replacement', authenticate, async (req, res) => {
   
   try {
     const pool = getPool();
-    const [result] = await pool.execute(
+    const result = await pool.query(
       `INSERT INTO text_replacements (user_id, app_version, os, success, method, target_app, text_length, response_time, user_agent, ip_address)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
       [userId, appVersion, os, success, method, targetApp, textLength, responseTime, userAgent, ipAddress]
     );
     
     // Log successful tracking
     console.log(`✅ Text replacement tracked: User ${userId}, App ${targetApp}, Success: ${success}`);
     
-    res.json({ success: true, id: result.insertId });
+    res.json({ success: true, id: result.rows[0].id });
   } catch (err) {
     console.error('Database error:', err);
     res.status(500).json({ error: 'Database error' });
@@ -66,12 +66,12 @@ app.post('/api/analytics/error', authenticate, async (req, res) => {
   
   try {
     const pool = getPool();
-    const [result] = await pool.execute(
+    const result = await pool.query(
       `INSERT INTO errors (user_id, app_version, os, error_type, error_message, target_app, stack_trace)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
       [userId, appVersion, os, errorType, errorMessage, targetApp, stackTrace]
     );
-    res.json({ success: true, id: result.insertId });
+    res.json({ success: true, id: result.rows[0].id });
   } catch (err) {
     console.error('Database error:', err);
     res.status(500).json({ error: 'Database error' });
@@ -83,12 +83,12 @@ app.post('/api/analytics/user-action', authenticate, async (req, res) => {
   
   try {
     const pool = getPool();
-    const [result] = await pool.execute(
+    const result = await pool.query(
       `INSERT INTO user_actions (user_id, action_type, target_app, app_version, os)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [userId, actionType, targetApp, appVersion, os]
     );
-    res.json({ success: true, id: result.insertId });
+    res.json({ success: true, id: result.rows[0].id });
   } catch (err) {
     console.error('Database error:', err);
     res.status(500).json({ error: 'Database error' });
@@ -106,13 +106,13 @@ app.get('/api/metrics/overview', authenticate, async (req, res) => {
       'SELECT AVG(response_time) as avg_response_time FROM text_replacements WHERE response_time IS NOT NULL'
     ];
 
-    const results = await Promise.all(queries.map(query => pool.execute(query)));
+    const results = await Promise.all(queries.map(query => pool.query(query)));
     
     res.json({
-      totalReplacements: results[0][0][0].total_replacements || 0,
-      uniqueUsers: results[1][0][0].unique_users || 0,
-      totalErrors: results[2][0][0].total_errors || 0,
-      avgResponseTime: Math.round(results[3][0][0].avg_response_time || 0)
+      totalReplacements: results[0].rows[0].total_replacements || 0,
+      uniqueUsers: results[1].rows[0].unique_users || 0,
+      totalErrors: results[2].rows[0].total_errors || 0,
+      avgResponseTime: Math.round(results[3].rows[0].avg_response_time || 0)
     });
   } catch (err) {
     console.error('Database error:', err);
@@ -123,7 +123,7 @@ app.get('/api/metrics/overview', authenticate, async (req, res) => {
 app.get('/api/metrics/users', authenticate, async (req, res) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.execute(`
+    const result = await pool.query(`
       SELECT 
         user_id,
         COUNT(*) as replacement_count,
@@ -134,7 +134,7 @@ app.get('/api/metrics/users', authenticate, async (req, res) => {
       ORDER BY replacement_count DESC 
       LIMIT 10
     `);
-    res.json(rows || []);
+    res.json(result.rows || []);
   } catch (err) {
     console.error('Database error:', err);
     res.status(500).json({ error: 'Database error' });
@@ -144,7 +144,7 @@ app.get('/api/metrics/users', authenticate, async (req, res) => {
 app.get('/api/metrics/usage', authenticate, async (req, res) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.execute(`
+    const result = await pool.query(`
       SELECT 
         DATE(timestamp) as date,
         COUNT(*) as replacements,
@@ -154,7 +154,7 @@ app.get('/api/metrics/usage', authenticate, async (req, res) => {
       GROUP BY DATE(timestamp) 
       ORDER BY date DESC
     `);
-    res.json(rows || []);
+    res.json(result.rows || []);
   } catch (err) {
     console.error('Database error:', err);
     res.status(500).json({ error: 'Database error' });
@@ -165,7 +165,7 @@ app.get('/api/metrics/errors', authenticate, async (req, res) => {
   const limit = req.query.limit || 10;
   try {
     const pool = getPool();
-    const [rows] = await pool.execute(`
+    const result = await pool.query(`
       SELECT 
         error_type,
         error_message,
@@ -176,7 +176,7 @@ app.get('/api/metrics/errors', authenticate, async (req, res) => {
       ORDER BY timestamp DESC 
       LIMIT ?
     `, [limit]);
-    res.json(rows || []);
+    res.json(result.rows || []);
   } catch (err) {
     console.error('Database error:', err);
     res.status(500).json({ error: 'Database error' });
@@ -187,7 +187,7 @@ app.get('/api/metrics/errors', authenticate, async (req, res) => {
 app.get('/api/metrics/apps', authenticate, async (req, res) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.execute(`
+    const result = await pool.query(`
       SELECT 
         target_app,
         COUNT(*) as usage_count,
@@ -199,7 +199,7 @@ app.get('/api/metrics/apps', authenticate, async (req, res) => {
       ORDER BY usage_count DESC 
       LIMIT 20
     `);
-    res.json(rows || []);
+    res.json(result.rows || []);
   } catch (err) {
     console.error('Database error:', err);
     res.status(500).json({ error: 'Database error' });
@@ -209,7 +209,7 @@ app.get('/api/metrics/apps', authenticate, async (req, res) => {
 app.get('/api/metrics/methods', authenticate, async (req, res) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.execute(`
+    const result = await pool.query(`
       SELECT 
         method,
         COUNT(*) as usage_count,
@@ -219,7 +219,7 @@ app.get('/api/metrics/methods', authenticate, async (req, res) => {
       GROUP BY method 
       ORDER BY usage_count DESC
     `);
-    res.json(rows || []);
+    res.json(result.rows || []);
   } catch (err) {
     console.error('Database error:', err);
     res.status(500).json({ error: 'Database error' });
@@ -229,7 +229,7 @@ app.get('/api/metrics/methods', authenticate, async (req, res) => {
 app.get('/api/metrics/real-time', authenticate, async (req, res) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.execute(`
+    const result = await pool.query(`
       SELECT 
         DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00') as minute,
         COUNT(*) as replacements,
@@ -240,7 +240,7 @@ app.get('/api/metrics/real-time', authenticate, async (req, res) => {
       ORDER BY minute DESC
       LIMIT 60
     `);
-    res.json(rows || []);
+    res.json(result.rows || []);
   } catch (err) {
     console.error('Database error:', err);
     res.status(500).json({ error: 'Database error' });
