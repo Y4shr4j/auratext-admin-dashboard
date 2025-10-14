@@ -1,0 +1,71 @@
+// INTEGRATION EXAMPLE FOR YOUR MAIN.JS FILE
+// Add this to your existing main.js file
+
+const AnalyticsService = require('./src/services/AnalyticsService');
+
+// In your existing 'accept-suggestion' handler, add analytics tracking:
+ipcMain.handle('accept-suggestion', async (event, suggestionData) => {
+  const startTime = Date.now();
+  
+  try {
+    // ... your existing replacement logic ...
+    
+    // Track successful replacement
+    AnalyticsService.trackTextReplacement({
+      success: true,
+      method: result.method, // e.g., 'Win32DirectReplacer', 'TextPatternReplacer'
+      targetApp: suggestionData.app, // e.g., 'notepad.exe', 'WINWORD.EXE'
+      textLength: suggestionData.newText?.length || 0,
+      responseTime: Date.now() - startTime
+    });
+    
+    return result;
+  } catch (error) {
+    // Track failed replacement
+    AnalyticsService.trackError({
+      type: 'replacement_failed',
+      message: error.message,
+      targetApp: suggestionData.app,
+      stack: error.stack
+    });
+    
+    throw error;
+  }
+});
+
+// Track app startup
+app.whenReady().then(() => {
+  // ... your existing startup code ...
+  
+  // Track app opened
+  AnalyticsService.trackUserAction({
+    type: 'app_started',
+    data: {
+      version: app.getVersion(),
+      platform: process.platform
+    }
+  });
+});
+
+// Track app errors globally
+process.on('uncaughtException', (error) => {
+  AnalyticsService.trackError({
+    type: 'uncaught_exception',
+    message: error.message,
+    targetApp: 'main_process',
+    stack: error.stack
+  });
+  
+  // ... your existing error handling ...
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  AnalyticsService.trackError({
+    type: 'unhandled_rejection',
+    message: reason.toString(),
+    targetApp: 'main_process',
+    stack: reason.stack
+  });
+  
+  // ... your existing error handling ...
+});
