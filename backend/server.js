@@ -30,6 +30,26 @@ const authenticate = (req, res, next) => {
   next();
 };
 
+// Root endpoint - Landing page
+app.get('/', (req, res) => {
+  res.json({
+    message: '🚀 AuraText Analytics API Server is Running!',
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    database: 'connected',
+    endpoints: {
+      health: '/api/health',
+      overview: '/api/metrics/overview',
+      usage: '/api/metrics/usage',
+      errors: '/api/metrics/errors',
+      apps: '/api/metrics/apps',
+      methods: '/api/metrics/methods',
+      realTime: '/api/metrics/real-time'
+    },
+    documentation: 'Visit your frontend dashboard to view analytics data'
+  });
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
