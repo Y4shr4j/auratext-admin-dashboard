@@ -39,12 +39,16 @@ function App() {
 
   const fetchData = async () => {
     try {
+      console.log('🔍 Fetching data from:', API_BASE_URL);
+      
       const [overview, users, usage, errors] = await Promise.all([
         axios.get(`${API_BASE_URL}/metrics/overview`),
         axios.get(`${API_BASE_URL}/metrics/users`),
         axios.get(`${API_BASE_URL}/metrics/usage`),
         axios.get(`${API_BASE_URL}/metrics/errors?limit=10`)
       ]);
+
+      console.log('✅ Data fetched successfully:', { overview: overview.data, users: users.data, usage: usage.data, errors: errors.data });
 
       setOverviewData(overview.data);
       setUserStats(users.data);
@@ -53,7 +57,13 @@ function App() {
       setLastUpdate(new Date());
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('❌ Error fetching data:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        url: error.config?.url
+      });
       setLoading(false);
     }
   };
