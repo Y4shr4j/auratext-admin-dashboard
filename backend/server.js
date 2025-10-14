@@ -8,7 +8,15 @@ const app = express();
 // Remove PORT since we're not listening in serverless mode
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://auratext-admin-dashboard-gpbl.vercel.app',
+    'https://auratext-admin-dashboard-gbpl.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // Database setup
