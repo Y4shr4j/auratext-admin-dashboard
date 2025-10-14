@@ -1,0 +1,73 @@
+// INTEGRATION EXAMPLE FOR YOUR src/App.js FILE
+// Add this to your existing App.js file
+
+import AnalyticsService from './services/AnalyticsService';
+
+// In your existing component, add analytics tracking:
+
+// Track when user opens the app
+useEffect(() => {
+  // Track app opened in renderer
+  AnalyticsService.trackUserAction({
+    type: 'app_opened',
+    data: {
+      version: process.env.npm_package_version || 'unknown',
+      platform: process.platform
+    }
+  });
+}, []);
+
+// In your existing handleReplaceText function:
+const handleReplaceText = async (suggestion) => {
+  try {
+    // Track user action
+    AnalyticsService.trackUserAction({
+      type: 'replace_text_clicked',
+      data: {
+        suggestionLength: suggestion.text?.length || 0,
+        originalLength: suggestion.original?.length || 0,
+        app: suggestion.app
+      }
+    });
+    
+    // ... your existing replacement logic ...
+    
+  } catch (error) {
+    // Track UI error
+    AnalyticsService.trackError({
+      type: 'ui_error',
+      message: error.message,
+      targetApp: suggestion.app,
+      stack: error.stack
+    });
+    
+    // ... your existing error handling ...
+  }
+};
+
+// Track other user interactions
+const handleSettingsOpen = () => {
+  AnalyticsService.trackUserAction({
+    type: 'settings_opened',
+    data: {}
+  });
+};
+
+const handleAboutOpen = () => {
+  AnalyticsService.trackUserAction({
+    type: 'about_opened',
+    data: {}
+  });
+};
+
+// Track when user disables/enables analytics
+const handleAnalyticsToggle = (enabled) => {
+  AnalyticsService.setEnabled(enabled);
+  
+  AnalyticsService.trackUserAction({
+    type: 'analytics_toggled',
+    data: {
+      enabled: enabled
+    }
+  });
+};
