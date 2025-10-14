@@ -82,9 +82,11 @@ module.exports = async (req, res) => {
   if (req.url === '/api/metrics/overview' && req.method === 'GET') {
     try {
       // Check authentication
-      authenticate(req, res, () => {
-        // Authentication passed, continue with the request
-      });
+      const authHeader = req.headers['authorization'];
+      const token = authHeader && authHeader.split(' ')[1];
+      if (!token || token !== 'auratext_secret_key_2024_launch_secure') {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
       
       const pool = getPool();
       const queries = [
@@ -115,7 +117,12 @@ module.exports = async (req, res) => {
   // Metrics usage endpoint
   if (req.url === '/api/metrics/usage' && req.method === 'GET') {
     try {
-      authenticate(req, res, () => {});
+      // Check authentication
+      const authHeader = req.headers['authorization'];
+      const token = authHeader && authHeader.split(' ')[1];
+      if (!token || token !== 'auratext_secret_key_2024_launch_secure') {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
       
       const pool = getPool();
       const result = await pool.query(`
@@ -139,7 +146,12 @@ module.exports = async (req, res) => {
   // Metrics errors endpoint
   if (req.url.startsWith('/api/metrics/errors') && req.method === 'GET') {
     try {
-      authenticate(req, res, () => {});
+      // Check authentication
+      const authHeader = req.headers['authorization'];
+      const token = authHeader && authHeader.split(' ')[1];
+      if (!token || token !== 'auratext_secret_key_2024_launch_secure') {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
       
       const limit = req.url.includes('limit=') ? req.url.split('limit=')[1].split('&')[0] : 10;
       const pool = getPool();
