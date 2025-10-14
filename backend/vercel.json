@@ -1,21 +1,19 @@
 {
   "version": 2,
-  "name": "auratext-admin-backend",
-  "builds": [
-    {
-      "src": "server.js",
-      "use": "@vercel/node"
+  "functions": {
+    "api/index.js": {
+      "runtime": "nodejs18.x"
     }
-  ],
+  },
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "server.js"
+      "src": "/api/(.*)",
+      "dest": "/api/index.js"
     }
   ],
   "env": {
     "API_KEY": "auratext_secret_key_2024_launch_secure",
-    "DATABASE_PATH": "./analytics.db",
+    "DATABASE_PATH": "/tmp/analytics.db",
     "CORS_ORIGIN": "*"
   }
 }

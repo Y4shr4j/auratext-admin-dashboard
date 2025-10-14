@@ -10,10 +10,9 @@ import {
   Title,
   Tooltip,
   Legend,
-  ArcElement,
+  ArcElement
 } from 'chart.js';
-import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import './App.css';
+import { Line, Doughnut } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -27,252 +26,132 @@ ChartJS.register(
   ArcElement
 );
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://auratext-admin-dashboard.vercel.app/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://auratext-admin-dashboard.vercel.app';
+const API_KEY = 'auratext_secret_key_2024_launch_secure';
 
 function App() {
-  const [overviewData, setOverviewData] = useState(null);
-  const [userStats, setUserStats] = useState([]);
-  const [usageStats, setUsageStats] = useState([]);
-  const [errorLogs, setErrorLogs] = useState([]);
+  const [overview, setOverview] = useState({ totalReplacements: 0, uniqueUsers: 0, totalErrors: 0, avgResponseTime: 0 });
+  const [usage, setUsage] = useState([]);
+  const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchData = async () => {
     try {
-      console.log('🔍 Fetching data from:', API_BASE_URL);
-      
-      const [overview, users, usage, errors] = await Promise.all([
-        axios.get(`${API_BASE_URL}/metrics/overview`),
-        axios.get(`${API_BASE_URL}/metrics/users`),
-        axios.get(`${API_BASE_URL}/metrics/usage`),
-        axios.get(`${API_BASE_URL}/metrics/errors?limit=10`)
+      const headers = {
+        'Authorization': `Bearer ${API_KEY}`
+      };
+
+      const [overviewRes, usageRes, errorsRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/metrics/overview`, { headers }),
+        axios.get(`${API_BASE_URL}/api/metrics/usage`, { headers }),
+        axios.get(`${API_BASE_URL}/api/metrics/errors?limit=10`, { headers })
       ]);
-
-      console.log('✅ Data fetched successfully:', { overview: overview.data, users: users.data, usage: usage.data, errors: errors.data });
-
-      setOverviewData(overview.data);
-      setUserStats(users.data);
-      setUsageStats(usage.data);
-      setErrorLogs(errors.data);
-      setLastUpdate(new Date());
+      
+      setOverview(overviewRes.data);
+      setUsage(usageRes.data);
+      setErrors(errorsRes.data);
       setLoading(false);
-    } catch (error) {
-      console.error('❌ Error fetching data:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        url: error.config?.url
-      });
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError(err.message);
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
-
   if (loading) {
     return (
-      <div className="loading">
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
         <div className="spinner"></div>
         <p>Loading AuraText Dashboard...</p>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div style={{ padding: '20px', textAlign: 'center' }}>
+        <h1>⚠️ Connection Error</h1>
+        <p>Could not connect to backend: {error}</p>
+        <p>Backend URL: {API_BASE_URL}</p>
+      </div>
+    );
+  }
+
+  const usageChartData = {
+    labels: usage.map(u => new Date(u.date).toLocaleDateString()),
+    datasets: [{
+      label: 'Replacements',
+      data: usage.map(u => u.replacements),
+      borderColor: 'rgb(75, 192, 192)',
+      backgroundColor: 'rgba(75, 192, 192, 0.2)',
+    }]
+  };
+
+  const errorChartData = {
+    labels: ['Success', 'Errors'],
+    datasets: [{
+      data: [overview.totalReplacements - overview.totalErrors, overview.totalErrors],
+      backgroundColor: ['rgba(75, 192, 192, 0.8)', 'rgba(255, 99, 132, 0.8)']
+    }]
+  };
+
   return (
-    <div className="app">
-      <header className="header">
-        <div className="header-content">
-          <h1>🚀 AuraText Admin Dashboard</h1>
-          <div className="header-info">
-            <span className="status-indicator online"></span>
-            <span>Live</span>
-            <span className="last-update">
-              Last updated: {lastUpdate.toLocaleTimeString()}
-            </span>
-          </div>
-        </div>
+    <div className="dashboard">
+      <header>
+        <h1>🚀 AuraText Admin Dashboard</h1>
       </header>
 
-      <main className="main">
-        {overviewData && (
-          <>
-            {/* Overview Cards */}
-            <section className="overview-cards">
-              <div className="card">
-                <div className="card-header">
-                  <h3>Total Users</h3>
-                  <div className="card-icon">👥</div>
-                </div>
-                <div className="card-value">{overviewData.totalUsers}</div>
-                <div className="card-subtitle">
-                  {overviewData.todayUsers} active today
-                </div>
-              </div>
+      <div className="cards">
+        <div className="card">
+          <h3>Total Replacements</h3>
+          <div className="metric">{overview.totalReplacements}</div>
+        </div>
+        <div className="card">
+          <h3>Unique Users</h3>
+          <div className="metric">{overview.uniqueUsers}</div>
+        </div>
+        <div className="card">
+          <h3>Total Errors</h3>
+          <div className="metric">{overview.totalErrors}</div>
+        </div>
+        <div className="card">
+          <h3>Avg Response Time</h3>
+          <div className="metric">{overview.avgResponseTime}ms</div>
+        </div>
+      </div>
 
-              <div className="card">
-                <div className="card-header">
-                  <h3>Text Replacements</h3>
-                  <div className="card-icon">✏️</div>
-                </div>
-                <div className="card-value">{overviewData.totalReplacements}</div>
-                <div className="card-subtitle">
-                  {overviewData.todayReplacements} today
-                </div>
-              </div>
+      <div className="charts">
+        <div className="chart-container">
+          <h3>Usage Over Time</h3>
+          <Line data={usageChartData} options={{ responsive: true }} />
+        </div>
+        <div className="chart-container">
+          <h3>Success vs Errors</h3>
+          <Doughnut data={errorChartData} options={{ responsive: true }} />
+        </div>
+      </div>
 
-              <div className="card">
-                <div className="card-header">
-                  <h3>Success Rate</h3>
-                  <div className="card-icon">📊</div>
-                </div>
-                <div className="card-value">
-                  {overviewData.successRate ? overviewData.successRate.toFixed(1) : 0}%
-                </div>
-                <div className="card-subtitle">Overall performance</div>
-              </div>
-
-              <div className="card">
-                <div className="card-header">
-                  <h3>Recent Errors</h3>
-                  <div className="card-icon">⚠️</div>
-                </div>
-                <div className="card-value">{overviewData.recentErrors?.length || 0}</div>
-                <div className="card-subtitle">In last 10 events</div>
-              </div>
-            </section>
-
-            {/* Charts Section */}
-            <section className="charts-section">
-              <div className="chart-container">
-                <h3>User Growth (Last 7 Days)</h3>
-                <Line
-                  data={{
-                    labels: userStats.map(stat => new Date(stat.date).toLocaleDateString()),
-                    datasets: [
-                      {
-                        label: 'New Users',
-                        data: userStats.map(stat => stat.new_users),
-                        borderColor: 'rgb(75, 192, 192)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        tension: 0.4,
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    plugins: {
-                      legend: {
-                        position: 'top',
-                      },
-                    },
-                  }}
-                />
-              </div>
-
-              <div className="chart-container">
-                <h3>App Usage Distribution</h3>
-                <Doughnut
-                  data={{
-                    labels: usageStats.map(stat => stat.target_app),
-                    datasets: [
-                      {
-                        data: usageStats.map(stat => stat.count),
-                        backgroundColor: [
-                          '#FF6384',
-                          '#36A2EB',
-                          '#FFCE56',
-                          '#4BC0C0',
-                          '#9966FF',
-                          '#FF9F40',
-                        ],
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    plugins: {
-                      legend: {
-                        position: 'bottom',
-                      },
-                    },
-                  }}
-                />
-              </div>
-            </section>
-
-            {/* Usage Statistics */}
-            <section className="usage-section">
-              <h3>App Usage Statistics</h3>
-              <div className="usage-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Application</th>
-                      <th>Total Usage</th>
-                      <th>Success Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {usageStats.map((stat, index) => (
-                      <tr key={index}>
-                        <td>
-                          <span className="app-name">{stat.target_app}</span>
-                        </td>
-                        <td>
-                          <span className="usage-count">{stat.count}</span>
-                        </td>
-                        <td>
-                          <span className={`success-rate ${stat.success_rate > 90 ? 'high' : stat.success_rate > 70 ? 'medium' : 'low'}`}>
-                            {stat.success_rate.toFixed(1)}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            {/* Recent Errors */}
-            <section className="errors-section">
-              <h3>Recent Errors</h3>
-              <div className="errors-list">
-                {errorLogs.length > 0 ? (
-                  errorLogs.map((error, index) => (
-                    <div key={index} className="error-item">
-                      <div className="error-header">
-                        <span className="error-type">{error.error_type}</span>
-                        <span className="error-time">
-                          {new Date(error.timestamp).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="error-message">{error.error_message}</div>
-                      <div className="error-details">
-                        <span className="error-app">App: {error.target_app}</span>
-                        <span className="error-os">OS: {error.os}</span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="no-errors">
-                    <p>🎉 No recent errors! Your app is running smoothly.</p>
-                  </div>
-                )}
-              </div>
-            </section>
-          </>
+      <div className="errors">
+        <h3>Recent Errors</h3>
+        {errors.length > 0 ? (
+          errors.map((err, i) => (
+            <div key={i} className="error-item">
+              <strong>{err.error_type}</strong>: {err.error_message}
+              <br />
+              <small>{new Date(err.timestamp).toLocaleString()}</small>
+            </div>
+          ))
+        ) : (
+          <p>🎉 No errors found!</p>
         )}
-      </main>
-
-      <footer className="footer">
-        <p>AuraText Admin Dashboard - Real-time Analytics</p>
-        <p>Built for launch day monitoring</p>
-      </footer>
+      </div>
     </div>
   );
 }
