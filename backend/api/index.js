@@ -52,7 +52,7 @@ module.exports = async (req, res) => {
   // Root endpoint
   if (req.url === '/' && req.method === 'GET') {
     return res.json({
-      message: '🚀 AuraText Analytics API Server is Running!',
+      message: '🚀 AuraText Analytics API Server is Running! (Updated)',
       status: 'healthy',
       timestamp: new Date().toISOString(),
       database: 'connected',
