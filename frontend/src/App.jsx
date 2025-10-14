@@ -40,6 +40,12 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [dataStatus, setDataStatus] = useState({
+    users: 'loading',
+    apps: 'loading',
+    methods: 'loading',
+    realTime: 'loading'
+  });
 
   useEffect(() => {
     fetchData();
@@ -56,23 +62,80 @@ function App() {
         'Authorization': `Bearer ${API_KEY}`
       };
 
-      const [overviewRes, usageRes, errorsRes, usersRes, appsRes, methodsRes, realTimeRes] = await Promise.all([
+      // Fetch data with fallbacks for missing endpoints
+      const [overviewRes, usageRes, errorsRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/api/metrics/overview`, { headers }),
         axios.get(`${API_BASE_URL}/api/metrics/usage`, { headers }),
-        axios.get(`${API_BASE_URL}/api/metrics/errors?limit=10`, { headers }),
-        axios.get(`${API_BASE_URL}/api/metrics/users`, { headers }),
-        axios.get(`${API_BASE_URL}/api/metrics/apps`, { headers }),
-        axios.get(`${API_BASE_URL}/api/metrics/methods`, { headers }),
-        axios.get(`${API_BASE_URL}/api/metrics/real-time`, { headers })
+        axios.get(`${API_BASE_URL}/api/metrics/errors?limit=10`, { headers })
       ]);
       
       setOverview(overviewRes.data);
       setUsage(usageRes.data);
       setErrors(errorsRes.data);
-      setUsers(usersRes.data);
-      setApps(appsRes.data);
-      setMethods(methodsRes.data);
-      setRealTime(realTimeRes.data);
+
+      // Try to fetch optional endpoints with fallbacks
+      try {
+        const usersRes = await axios.get(`${API_BASE_URL}/api/metrics/users`, { headers });
+        setUsers(usersRes.data);
+        setDataStatus(prev => ({ ...prev, users: 'live' }));
+      } catch (err) {
+        console.warn('Users endpoint not available, using mock data');
+        setUsers([
+          { user_id: 'user_123', replacement_count: 245, avg_response_time: 120, last_seen: new Date().toISOString() },
+          { user_id: 'user_456', replacement_count: 189, avg_response_time: 156, last_seen: new Date(Date.now() - 7200000).toISOString() },
+          { user_id: 'user_789', replacement_count: 134, avg_response_time: 98, last_seen: new Date(Date.now() - 86400000).toISOString() }
+        ]);
+        setDataStatus(prev => ({ ...prev, users: 'mock' }));
+      }
+
+      try {
+        const appsRes = await axios.get(`${API_BASE_URL}/api/metrics/apps`, { headers });
+        setApps(appsRes.data);
+        setDataStatus(prev => ({ ...prev, apps: 'live' }));
+      } catch (err) {
+        console.warn('Apps endpoint not available, using mock data');
+        setApps([
+          { target_app: 'notepad.exe', usage_count: 456, unique_users: 23, avg_response_time: 120, success_rate: 94.5 },
+          { target_app: 'WINWORD.EXE', usage_count: 389, unique_users: 18, avg_response_time: 145, success_rate: 91.2 },
+          { target_app: 'EXCEL.EXE', usage_count: 234, unique_users: 12, avg_response_time: 167, success_rate: 88.9 }
+        ]);
+        setDataStatus(prev => ({ ...prev, apps: 'mock' }));
+      }
+
+      try {
+        const methodsRes = await axios.get(`${API_BASE_URL}/api/metrics/methods`, { headers });
+        setMethods(methodsRes.data);
+        setDataStatus(prev => ({ ...prev, methods: 'live' }));
+      } catch (err) {
+        console.warn('Methods endpoint not available, using mock data');
+        setMethods([
+          { method: 'Win32DirectReplacer', usage_count: 567, avg_response_time: 120, success_rate: 95.2 },
+          { method: 'TextPatternReplacer', usage_count: 423, avg_response_time: 145, success_rate: 92.1 },
+          { method: 'ClipboardReplacer', usage_count: 189, avg_response_time: 98, success_rate: 88.5 }
+        ]);
+        setDataStatus(prev => ({ ...prev, methods: 'mock' }));
+      }
+
+      try {
+        const realTimeRes = await axios.get(`${API_BASE_URL}/api/metrics/real-time`, { headers });
+        setRealTime(realTimeRes.data);
+        setDataStatus(prev => ({ ...prev, realTime: 'live' }));
+      } catch (err) {
+        console.warn('Real-time endpoint not available, using mock data');
+        const mockRealTime = [];
+        const now = new Date();
+        for (let i = 59; i >= 0; i--) {
+          const minute = new Date(now.getTime() - i * 60000);
+          mockRealTime.push({
+            minute: minute.toISOString().slice(0, 16) + ':00',
+            replacements: Math.floor(Math.random() * 10),
+            unique_users: Math.floor(Math.random() * 5) + 1
+          });
+        }
+        setRealTime(mockRealTime);
+        setDataStatus(prev => ({ ...prev, realTime: 'mock' }));
+      }
+
       setLoading(false);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -363,7 +426,17 @@ function App() {
         <h1>🚀 AuraText Admin Dashboard</h1>
         <div className="header-info">
           <span>Last updated: {new Date().toLocaleTimeString()}</span>
-          <span className="status-indicator">🟢 Live</span>
+          <div className="status-indicators">
+            <span className="status-indicator">🟢 Core Data</span>
+            {dataStatus.users === 'live' && <span className="status-indicator">🟢 Users</span>}
+            {dataStatus.apps === 'live' && <span className="status-indicator">🟢 Apps</span>}
+            {dataStatus.methods === 'live' && <span className="status-indicator">🟢 Methods</span>}
+            {dataStatus.realTime === 'live' && <span className="status-indicator">🟢 Real-time</span>}
+            {dataStatus.users === 'mock' && <span className="status-indicator mock">🟡 Users (Mock)</span>}
+            {dataStatus.apps === 'mock' && <span className="status-indicator mock">🟡 Apps (Mock)</span>}
+            {dataStatus.methods === 'mock' && <span className="status-indicator mock">🟡 Methods (Mock)</span>}
+            {dataStatus.realTime === 'mock' && <span className="status-indicator mock">🟡 Real-time (Mock)</span>}
+          </div>
         </div>
       </header>
 

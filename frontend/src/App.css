@@ -41,11 +41,24 @@ header h1 {
   gap: 5px;
 }
 
+.status-indicators {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
 .status-indicator {
   background: rgba(255, 255, 255, 0.2);
-  padding: 5px 10px;
-  border-radius: 15px;
-  font-size: 0.9em;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+.status-indicator.mock {
+  background: rgba(255, 193, 7, 0.3);
+  color: #ffc107;
 }
 
 .cards {
