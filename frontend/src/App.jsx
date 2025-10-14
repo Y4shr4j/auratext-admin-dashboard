@@ -12,7 +12,7 @@ import {
   Legend,
   ArcElement
 } from 'chart.js';
-import { Line, Doughnut } from 'react-chartjs-2';
+import { Line, Doughnut, Bar } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -33,8 +33,13 @@ function App() {
   const [overview, setOverview] = useState({ totalReplacements: 0, uniqueUsers: 0, totalErrors: 0, avgResponseTime: 0 });
   const [usage, setUsage] = useState([]);
   const [errors, setErrors] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [apps, setApps] = useState([]);
+  const [methods, setMethods] = useState([]);
+  const [realTime, setRealTime] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     fetchData();
@@ -51,15 +56,23 @@ function App() {
         'Authorization': `Bearer ${API_KEY}`
       };
 
-      const [overviewRes, usageRes, errorsRes] = await Promise.all([
+      const [overviewRes, usageRes, errorsRes, usersRes, appsRes, methodsRes, realTimeRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/api/metrics/overview`, { headers }),
         axios.get(`${API_BASE_URL}/api/metrics/usage`, { headers }),
-        axios.get(`${API_BASE_URL}/api/metrics/errors?limit=10`, { headers })
+        axios.get(`${API_BASE_URL}/api/metrics/errors?limit=10`, { headers }),
+        axios.get(`${API_BASE_URL}/api/metrics/users`, { headers }),
+        axios.get(`${API_BASE_URL}/api/metrics/apps`, { headers }),
+        axios.get(`${API_BASE_URL}/api/metrics/methods`, { headers }),
+        axios.get(`${API_BASE_URL}/api/metrics/real-time`, { headers })
       ]);
       
       setOverview(overviewRes.data);
       setUsage(usageRes.data);
       setErrors(errorsRes.data);
+      setUsers(usersRes.data);
+      setApps(appsRes.data);
+      setMethods(methodsRes.data);
+      setRealTime(realTimeRes.data);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -88,6 +101,7 @@ function App() {
     );
   }
 
+  // Chart data configurations
   const usageChartData = {
     labels: usage.map(u => new Date(u.date).toLocaleDateString()),
     datasets: [{
@@ -106,24 +120,265 @@ function App() {
     }]
   };
 
+  const appsChartData = {
+    labels: apps.slice(0, 10).map(app => app.target_app || 'Unknown'),
+    datasets: [{
+      label: 'Usage Count',
+      data: apps.slice(0, 10).map(app => app.usage_count || 0),
+      backgroundColor: 'rgba(54, 162, 235, 0.8)',
+      borderColor: 'rgba(54, 162, 235, 1)',
+      borderWidth: 1
+    }]
+  };
+
+  const methodsChartData = {
+    labels: methods.map(method => method.method || 'Unknown'),
+    datasets: [{
+      label: 'Usage Count',
+      data: methods.map(method => method.usage_count || 0),
+      backgroundColor: 'rgba(255, 206, 86, 0.8)',
+      borderColor: 'rgba(255, 206, 86, 1)',
+      borderWidth: 1
+    }]
+  };
+
+  const realTimeChartData = {
+    labels: realTime.slice(0, 20).map(rt => {
+      const date = new Date(rt.minute);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }),
+    datasets: [{
+      label: 'Replacements (Last Hour)',
+      data: realTime.slice(0, 20).map(rt => rt.replacements || 0),
+      borderColor: 'rgb(255, 99, 132)',
+      backgroundColor: 'rgba(255, 99, 132, 0.2)',
+      tension: 0.4
+    }]
+  };
+
+  const tabs = [
+    { id: 'overview', label: '📊 Overview', icon: '📊' },
+    { id: 'users', label: '👥 Users', icon: '👥' },
+    { id: 'apps', label: '📱 Apps', icon: '📱' },
+    { id: 'methods', label: '🔧 Methods', icon: '🔧' },
+    { id: 'realtime', label: '⚡ Real-time', icon: '⚡' },
+    { id: 'errors', label: '❌ Errors', icon: '❌' }
+  ];
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview':
+        return (
+          <>
+            <div className="charts">
+              <div className="chart-container">
+                <h3>Usage Over Time (30 days)</h3>
+                <Line data={usageChartData} options={{ responsive: true }} />
+              </div>
+              <div className="chart-container">
+                <h3>Success vs Errors</h3>
+                <Doughnut data={errorChartData} options={{ responsive: true }} />
+              </div>
+            </div>
+          </>
+        );
+      
+      case 'users':
+        return (
+          <div className="data-table">
+            <h3>Top Users</h3>
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>User ID</th>
+                    <th>Replacements</th>
+                    <th>Avg Response Time</th>
+                    <th>Last Seen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user, i) => (
+                    <tr key={i}>
+                      <td>{user.user_id}</td>
+                      <td>{user.replacement_count}</td>
+                      <td>{Math.round(user.avg_response_time || 0)}ms</td>
+                      <td>{new Date(user.last_seen).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      
+      case 'apps':
+        return (
+          <div className="charts">
+            <div className="chart-container">
+              <h3>App Usage Statistics</h3>
+              <Bar data={appsChartData} options={{ responsive: true }} />
+            </div>
+            <div className="data-table">
+              <h3>Detailed App Analytics</h3>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Target App</th>
+                      <th>Usage Count</th>
+                      <th>Unique Users</th>
+                      <th>Avg Response Time</th>
+                      <th>Success Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {apps.map((app, i) => (
+                      <tr key={i}>
+                        <td>{app.target_app || 'Unknown'}</td>
+                        <td>{app.usage_count}</td>
+                        <td>{app.unique_users}</td>
+                        <td>{Math.round(app.avg_response_time || 0)}ms</td>
+                        <td>{Math.round(app.success_rate || 0)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      
+      case 'methods':
+        return (
+          <div className="charts">
+            <div className="chart-container">
+              <h3>Method Usage Statistics</h3>
+              <Bar data={methodsChartData} options={{ responsive: true }} />
+            </div>
+            <div className="data-table">
+              <h3>Detailed Method Analytics</h3>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Method</th>
+                      <th>Usage Count</th>
+                      <th>Avg Response Time</th>
+                      <th>Success Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {methods.map((method, i) => (
+                      <tr key={i}>
+                        <td>{method.method || 'Unknown'}</td>
+                        <td>{method.usage_count}</td>
+                        <td>{Math.round(method.avg_response_time || 0)}ms</td>
+                        <td>{Math.round(method.success_rate || 0)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      
+      case 'realtime':
+        return (
+          <div className="charts">
+            <div className="chart-container">
+              <h3>Real-time Activity (Last Hour)</h3>
+              <Line data={realTimeChartData} options={{ responsive: true }} />
+            </div>
+            <div className="data-table">
+              <h3>Minute-by-Minute Activity</h3>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Replacements</th>
+                      <th>Unique Users</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {realTime.slice(0, 30).map((rt, i) => (
+                      <tr key={i}>
+                        <td>{new Date(rt.minute).toLocaleTimeString()}</td>
+                        <td>{rt.replacements}</td>
+                        <td>{rt.unique_users}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      
+      case 'errors':
+        return (
+          <div className="errors">
+            <h3>Recent Errors</h3>
+            {errors.length > 0 ? (
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Error Type</th>
+                      <th>Message</th>
+                      <th>Target App</th>
+                      <th>User ID</th>
+                      <th>Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {errors.map((err, i) => (
+                      <tr key={i}>
+                        <td>{err.error_type}</td>
+                        <td>{err.error_message}</td>
+                        <td>{err.target_app || 'Unknown'}</td>
+                        <td>{err.user_id}</td>
+                        <td>{new Date(err.timestamp).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p>🎉 No errors found!</p>
+            )}
+          </div>
+        );
+      
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="dashboard">
       <header>
         <h1>🚀 AuraText Admin Dashboard</h1>
+        <div className="header-info">
+          <span>Last updated: {new Date().toLocaleTimeString()}</span>
+          <span className="status-indicator">🟢 Live</span>
+        </div>
       </header>
 
       <div className="cards">
         <div className="card">
           <h3>Total Replacements</h3>
-          <div className="metric">{overview.totalReplacements}</div>
+          <div className="metric">{overview.totalReplacements.toLocaleString()}</div>
         </div>
         <div className="card">
           <h3>Unique Users</h3>
-          <div className="metric">{overview.uniqueUsers}</div>
+          <div className="metric">{overview.uniqueUsers.toLocaleString()}</div>
         </div>
         <div className="card">
           <h3>Total Errors</h3>
-          <div className="metric">{overview.totalErrors}</div>
+          <div className="metric">{overview.totalErrors.toLocaleString()}</div>
         </div>
         <div className="card">
           <h3>Avg Response Time</h3>
@@ -131,30 +386,21 @@ function App() {
         </div>
       </div>
 
-      <div className="charts">
-        <div className="chart-container">
-          <h3>Usage Over Time</h3>
-          <Line data={usageChartData} options={{ responsive: true }} />
-        </div>
-        <div className="chart-container">
-          <h3>Success vs Errors</h3>
-          <Doughnut data={errorChartData} options={{ responsive: true }} />
-        </div>
+      <div className="tabs">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`tab ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <span className="tab-icon">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <div className="errors">
-        <h3>Recent Errors</h3>
-        {errors.length > 0 ? (
-          errors.map((err, i) => (
-            <div key={i} className="error-item">
-              <strong>{err.error_type}</strong>: {err.error_message}
-              <br />
-              <small>{new Date(err.timestamp).toLocaleString()}</small>
-            </div>
-          ))
-        ) : (
-          <p>🎉 No errors found!</p>
-        )}
+      <div className="tab-content">
+        {renderTabContent()}
       </div>
     </div>
   );
