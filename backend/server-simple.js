@@ -151,13 +151,13 @@ app.get('/api/metrics/overview', async (req, res) => {
     const uniqueUsers = await new Promise((resolve, reject) => {
       db.get('SELECT COUNT(DISTINCT user_id) AS count FROM user_actions', (err, row) => err ? reject(err) : resolve(row.count));
     });
-
-    res.json({
+  
+  res.json({
       totalReplacements,
       successfulReplacements,
       failedReplacements: totalReplacements - successfulReplacements,
       totalErrors,
-      uniqueUsers,
+    uniqueUsers,
       successRate: totalReplacements > 0 ? (successfulReplacements / totalReplacements) * 100 : 0
     });
   } catch (err) {

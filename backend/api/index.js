@@ -239,5 +239,74 @@ app.get('/api/metrics/errors', async (req, res) => {
   }
 });
 
+// Additional endpoints for the dashboard
+app.get('/api/metrics/apps', async (req, res) => {
+  try {
+    const apps = await new Promise((resolve, reject) => {
+      db.all(`
+        SELECT 
+          target_app,
+          COUNT(*) as usage_count,
+          COUNT(DISTINCT user_id) as unique_users,
+          AVG(response_time) as avg_response_time,
+          (SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) as success_rate
+        FROM text_replacements 
+        WHERE target_app IS NOT NULL
+        GROUP BY target_app 
+        ORDER BY usage_count DESC 
+        LIMIT 20
+      `, (err, rows) => err ? reject(err) : resolve(rows));
+    });
+    res.json(apps);
+  } catch (err) {
+    console.error('Error fetching app metrics:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/metrics/methods', async (req, res) => {
+  try {
+    const methods = await new Promise((resolve, reject) => {
+      db.all(`
+        SELECT 
+          method,
+          COUNT(*) as usage_count,
+          AVG(response_time) as avg_response_time,
+          (SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) as success_rate
+        FROM text_replacements 
+        WHERE method IS NOT NULL
+        GROUP BY method 
+        ORDER BY usage_count DESC
+      `, (err, rows) => err ? reject(err) : resolve(rows));
+    });
+    res.json(methods);
+  } catch (err) {
+    console.error('Error fetching method metrics:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/metrics/real-time', async (req, res) => {
+  try {
+    const realTime = await new Promise((resolve, reject) => {
+      db.all(`
+        SELECT
+          strftime('%Y-%m-%d %H:%M:00', timestamp) AS minute,
+          COUNT(*) as replacements,
+          COUNT(DISTINCT user_id) as unique_users
+        FROM text_replacements
+        WHERE timestamp >= datetime('now', '-1 hour')
+        GROUP BY minute
+        ORDER BY minute DESC
+        LIMIT 60
+      `, (err, rows) => err ? reject(err) : resolve(rows));
+    });
+    res.json(realTime);
+  } catch (err) {
+    console.error('Error fetching real-time metrics:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Export the app for Vercel Serverless Functions
 module.exports = app;
