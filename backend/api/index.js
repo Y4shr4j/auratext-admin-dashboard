@@ -82,7 +82,7 @@ const authenticate = (req, res, next) => {
 // Root endpoint - Landing page
 app.get('/', (req, res) => {
   res.json({
-    message: '🚀 AuraText Analytics API Server is Running!',
+    message: '🚀 AuraText Analytics API Server v2.0 is Running!',
     status: 'healthy',
     timestamp: new Date().toISOString(),
     database: 'connected',
