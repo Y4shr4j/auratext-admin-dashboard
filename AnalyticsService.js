@@ -3,9 +3,9 @@
 
 class AnalyticsService {
   constructor() {
-    // Update this URL after deploying your dashboard to Vercel
-    this.dashboardUrl = 'https://your-dashboard-backend-url.vercel.app';
-    this.apiKey = 'auratext-analytics-2024';
+    // Dashboard URL - points to your deployed analytics dashboard
+    this.dashboardUrl = 'https://auratext-admin-dashboard.vercel.app';
+    this.apiKey = 'auratext_secret_key_2024_launch_secure';
     this.isEnabled = this.isAnalyticsEnabled();
     this.userId = this.getUserId();
   }
@@ -26,7 +26,7 @@ class AnalyticsService {
       timestamp: new Date().toISOString()
     };
 
-    this.sendToDashboard('/api/track/replacement', payload);
+    this.sendToDashboard('/api/analytics/text-replacement', payload);
   }
 
   // Track errors
@@ -44,7 +44,7 @@ class AnalyticsService {
       timestamp: new Date().toISOString()
     };
 
-    this.sendToDashboard('/api/track/error', payload);
+    this.sendToDashboard('/api/analytics/error', payload);
   }
 
   // Track user actions
@@ -60,7 +60,7 @@ class AnalyticsService {
       timestamp: new Date().toISOString()
     };
 
-    this.sendToDashboard('/api/track/user-action', payload);
+    this.sendToDashboard('/api/analytics/user-action', payload);
   }
 
   // Send data to dashboard (fire-and-forget approach)

@@ -8,6 +8,6 @@
     }
   ],
   "env": {
-    "VITE_API_URL": "https://auratext-admin-dashboard.vercel.app"
+    "VITE_API_URL": "https://auratext-admin-dashboard-gpbl.vercel.app"
   }
 }

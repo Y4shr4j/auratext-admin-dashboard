@@ -26,7 +26,7 @@ ChartJS.register(
   ArcElement
 );
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://auratext-admin-dashboard.vercel.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://auratext-admin-dashboard-gpbl.vercel.app';
 const API_KEY = 'auratext_secret_key_2024_launch_secure';
 
 function App() {
@@ -423,7 +423,7 @@ function App() {
   return (
     <div className="dashboard">
       <header>
-        <h1>🚀 AuraText Admin Dashboard</h1>
+        <h1>⚡ AuraText Admin Dashboard</h1>
         <div className="header-info">
           <span>Last updated: {new Date().toLocaleTimeString()}</span>
           <div className="status-indicators">

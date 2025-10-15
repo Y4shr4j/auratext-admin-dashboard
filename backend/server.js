@@ -267,5 +267,16 @@ app.get('/api/metrics/real-time', authenticate, async (req, res) => {
   }
 });
 
+// Start server for local development
+const PORT = process.env.PORT || 3000;
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 AuraText Analytics API Server running on http://localhost:${PORT}`);
+    console.log(`📊 Dashboard endpoints available at http://localhost:${PORT}/api/*`);
+    console.log(`🔍 Health check: http://localhost:${PORT}/api/health`);
+  });
+}
+
 // Export the app for Vercel serverless functions
 module.exports = app;
