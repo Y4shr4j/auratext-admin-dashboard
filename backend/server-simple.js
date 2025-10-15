@@ -1,7 +1,11 @@
 const express = require('express');
+const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
+const path = require('path');
+require('dotenv').config();
 
 const app = express();
+const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
@@ -15,267 +19,210 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// In-memory storage for testing
-let textReplacements = [];
-let errors = [];
-let userActions = [];
+// Database setup
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'analytics.db');
+const db = new sqlite3.Database(dbPath);
 
-// Authentication middleware
+// Initialize database tables
+db.serialize(() => {
+  // Text replacements table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS text_replacements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      app_version TEXT,
+      os TEXT,
+      success BOOLEAN,
+      method TEXT,
+      target_app TEXT,
+      text_length INTEGER,
+      response_time INTEGER,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Errors table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS errors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      app_version TEXT,
+      os TEXT,
+      error_type TEXT,
+      error_message TEXT,
+      target_app TEXT,
+      stack_trace TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // User actions table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS user_actions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      app_version TEXT,
+      os TEXT,
+      action_type TEXT,
+      action_details TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+});
+
+// API Key Authentication Middleware
 const authenticate = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token || token !== 'auratext_secret_key_2024_launch_secure') {
-    return res.sendStatus(403);
+    return res.status(403).json({ message: 'Forbidden: Invalid API Key' });
   }
   next();
 };
 
-// Root endpoint - Landing page
-app.get('/', (req, res) => {
-  res.json({
-    message: '🚀 AuraText Analytics API Server is Running!',
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    database: 'in-memory',
-    endpoints: {
-      health: '/api/health',
-      overview: '/api/metrics/overview',
-      usage: '/api/metrics/usage',
-      errors: '/api/metrics/errors',
-      apps: '/api/metrics/apps',
-      methods: '/api/metrics/methods',
-      realTime: '/api/metrics/real-time'
-    },
-    documentation: 'Visit your frontend dashboard to view analytics data'
-  });
-});
-
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    database: 'in-memory'
+  db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='text_replacements'", (err, row) => {
+    if (err) {
+      return res.status(500).json({ status: 'unhealthy', database: 'disconnected', error: err.message });
+    }
+    res.status(200).json({ status: 'healthy', timestamp: new Date().toISOString(), database: row ? 'connected' : 'not initialized' });
   });
 });
 
-// Analytics endpoints
-app.post('/api/analytics/text-replacement', authenticate, async (req, res) => {
-  const { userId, appVersion, os, success, method, targetApp, textLength, responseTime, userAgent, ipAddress } = req.body;
-  
-  const replacement = {
-    id: Date.now(),
-    userId, appVersion, os, success, method, targetApp, textLength, responseTime, userAgent, ipAddress,
-    timestamp: new Date().toISOString()
-  };
-  
-  textReplacements.push(replacement);
-  
-  console.log(`✅ Text replacement tracked: User ${userId}, App ${targetApp}, Success: ${success}`);
-  res.json({ success: true, id: replacement.id });
+// Analytics Endpoints
+app.post('/api/analytics/text-replacement', authenticate, (req, res) => {
+  const { userId, appVersion, os, success, method, targetApp, textLength, responseTime } = req.body;
+  db.run(
+    `INSERT INTO text_replacements (user_id, app_version, os, success, method, target_app, text_length, response_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, appVersion, os, success, method, targetApp, textLength, responseTime],
+    function (err) {
+      if (err) {
+        console.error('Error inserting text replacement:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      res.status(201).json({ message: 'Text replacement tracked', id: this.lastID });
+    }
+  );
 });
 
-app.post('/api/analytics/error', authenticate, async (req, res) => {
+app.post('/api/analytics/error', authenticate, (req, res) => {
   const { userId, appVersion, os, errorType, errorMessage, targetApp, stackTrace } = req.body;
-  
-  const error = {
-    id: Date.now(),
-    userId, appVersion, os, errorType, errorMessage, targetApp, stackTrace,
-    timestamp: new Date().toISOString()
-  };
-  
-  errors.push(error);
-  res.json({ success: true, id: error.id });
-});
-
-app.post('/api/analytics/user-action', authenticate, async (req, res) => {
-  const { userId, actionType, targetApp, appVersion, os } = req.body;
-  
-  const action = {
-    id: Date.now(),
-    userId, actionType, targetApp, appVersion, os,
-    timestamp: new Date().toISOString()
-  };
-  
-  userActions.push(action);
-  res.json({ success: true, id: action.id });
-});
-
-// Metrics endpoints
-app.get('/api/metrics/overview', authenticate, async (req, res) => {
-  const uniqueUsers = new Set(textReplacements.map(r => r.userId)).size;
-  const totalErrors = errors.length;
-  const avgResponseTime = textReplacements.length > 0 
-    ? Math.round(textReplacements.reduce((sum, r) => sum + (r.responseTime || 0), 0) / textReplacements.length)
-    : 0;
-  
-  res.json({
-    totalReplacements: textReplacements.length,
-    uniqueUsers,
-    totalErrors,
-    avgResponseTime
-  });
-});
-
-app.get('/api/metrics/users', authenticate, async (req, res) => {
-  const userStats = {};
-  textReplacements.forEach(r => {
-    if (!userStats[r.userId]) {
-      userStats[r.userId] = { count: 0, responseTimes: [] };
+  db.run(
+    `INSERT INTO errors (user_id, app_version, os, error_type, error_message, target_app, stack_trace) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [userId, appVersion, os, errorType, errorMessage, targetApp, stackTrace],
+    function (err) {
+      if (err) {
+        console.error('Error inserting error:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      res.status(201).json({ message: 'Error tracked', id: this.lastID });
     }
-    userStats[r.userId].count++;
-    if (r.responseTime) userStats[r.userId].responseTimes.push(r.responseTime);
-  });
-  
-  const users = Object.entries(userStats)
-    .map(([userId, stats]) => ({
-      user_id: userId,
-      replacement_count: stats.count,
-      avg_response_time: stats.responseTimes.length > 0 
-        ? Math.round(stats.responseTimes.reduce((a, b) => a + b, 0) / stats.responseTimes.length)
-        : 0,
-      last_seen: textReplacements.filter(r => r.userId === userId)
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]?.timestamp
-    }))
-    .sort((a, b) => b.replacement_count - a.replacement_count)
-    .slice(0, 10);
-    
-  res.json(users);
+  );
 });
 
-app.get('/api/metrics/usage', authenticate, async (req, res) => {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const recentReplacements = textReplacements.filter(r => new Date(r.timestamp) >= thirtyDaysAgo);
-  
-  const dailyStats = {};
-  recentReplacements.forEach(r => {
-    const date = r.timestamp.split('T')[0];
-    if (!dailyStats[date]) {
-      dailyStats[date] = { replacements: 0, users: new Set() };
+app.post('/api/analytics/user-action', authenticate, (req, res) => {
+  const { userId, appVersion, os, actionType, actionDetails } = req.body;
+  db.run(
+    `INSERT INTO user_actions (user_id, app_version, os, action_type, action_details) VALUES (?, ?, ?, ?, ?, ?)`,
+    [userId, appVersion, os, actionType, actionDetails],
+    function (err) {
+      if (err) {
+        console.error('Error inserting user action:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      res.status(201).json({ message: 'User action tracked', id: this.lastID });
     }
-    dailyStats[date].replacements++;
-    dailyStats[date].users.add(r.userId);
-  });
-  
-  const usage = Object.entries(dailyStats)
-    .map(([date, stats]) => ({
-      date,
-      replacements: stats.replacements,
-      unique_users: stats.users.size
-    }))
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-  res.json(usage);
+  );
 });
 
-app.get('/api/metrics/errors', authenticate, async (req, res) => {
-  const limit = parseInt(req.query.limit) || 10;
-  const recentErrors = errors
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .slice(0, limit)
-    .map(err => ({
-      error_type: err.errorType,
-      error_message: err.errorMessage,
-      target_app: err.targetApp,
-      timestamp: err.timestamp,
-      user_id: err.userId
-    }));
-    
-  res.json(recentErrors);
+// Metrics Endpoints (for the dashboard)
+app.get('/api/metrics/overview', async (req, res) => {
+  try {
+    const totalReplacements = await new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) AS count FROM text_replacements', (err, row) => err ? reject(err) : resolve(row.count));
+    });
+    const successfulReplacements = await new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) AS count FROM text_replacements WHERE success = TRUE', (err, row) => err ? reject(err) : resolve(row.count));
+    });
+    const totalErrors = await new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) AS count FROM errors', (err, row) => err ? reject(err) : resolve(row.count));
+    });
+    const uniqueUsers = await new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(DISTINCT user_id) AS count FROM user_actions', (err, row) => err ? reject(err) : resolve(row.count));
+    });
+
+    res.json({
+      totalReplacements,
+      successfulReplacements,
+      failedReplacements: totalReplacements - successfulReplacements,
+      totalErrors,
+      uniqueUsers,
+      successRate: totalReplacements > 0 ? (successfulReplacements / totalReplacements) * 100 : 0
+    });
+  } catch (err) {
+    console.error('Error fetching overview metrics:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get('/api/metrics/apps', authenticate, async (req, res) => {
-  const appStats = {};
-  textReplacements.forEach(r => {
-    if (!appStats[r.targetApp]) {
-      appStats[r.targetApp] = { count: 0, users: new Set(), responseTimes: [], successes: 0 };
-    }
-    appStats[r.targetApp].count++;
-    appStats[r.targetApp].users.add(r.userId);
-    if (r.responseTime) appStats[r.targetApp].responseTimes.push(r.responseTime);
-    if (r.success) appStats[r.targetApp].successes++;
-  });
-  
-  const apps = Object.entries(appStats)
-    .map(([targetApp, stats]) => ({
-      target_app: targetApp,
-      usage_count: stats.count,
-      unique_users: stats.users.size,
-      avg_response_time: stats.responseTimes.length > 0 
-        ? Math.round(stats.responseTimes.reduce((a, b) => a + b, 0) / stats.responseTimes.length)
-        : 0,
-      success_rate: Math.round((stats.successes / stats.count) * 100)
-    }))
-    .sort((a, b) => b.usage_count - a.usage_count)
-    .slice(0, 20);
-    
-  res.json(apps);
+app.get('/api/metrics/users', async (req, res) => {
+  try {
+    const usersByOs = await new Promise((resolve, reject) => {
+      db.all('SELECT os, COUNT(DISTINCT user_id) AS count FROM user_actions GROUP BY os', (err, rows) => err ? reject(err) : resolve(rows));
+    });
+    const usersByVersion = await new Promise((resolve, reject) => {
+      db.all('SELECT app_version, COUNT(DISTINCT user_id) AS count FROM user_actions GROUP BY app_version', (err, rows) => err ? reject(err) : resolve(rows));
+    });
+    res.json({ usersByOs, usersByVersion });
+  } catch (err) {
+    console.error('Error fetching user metrics:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get('/api/metrics/methods', authenticate, async (req, res) => {
-  const methodStats = {};
-  textReplacements.forEach(r => {
-    if (!methodStats[r.method]) {
-      methodStats[r.method] = { count: 0, responseTimes: [], successes: 0 };
-    }
-    methodStats[r.method].count++;
-    if (r.responseTime) methodStats[r.method].responseTimes.push(r.responseTime);
-    if (r.success) methodStats[r.method].successes++;
-  });
-  
-  const methods = Object.entries(methodStats)
-    .map(([method, stats]) => ({
-      method,
-      usage_count: stats.count,
-      avg_response_time: stats.responseTimes.length > 0 
-        ? Math.round(stats.responseTimes.reduce((a, b) => a + b, 0) / stats.responseTimes.length)
-        : 0,
-      success_rate: Math.round((stats.successes / stats.count) * 100)
-    }))
-    .sort((a, b) => b.usage_count - a.usage_count);
-    
-  res.json(methods);
+app.get('/api/metrics/usage', async (req, res) => {
+  try {
+    const replacementsOverTime = await new Promise((resolve, reject) => {
+      db.all(`
+        SELECT
+          strftime('%Y-%m-%d %H:00:00', timestamp) AS hour,
+          COUNT(*) AS count
+        FROM text_replacements
+        GROUP BY hour
+        ORDER BY hour
+        LIMIT 24
+      `, (err, rows) => err ? reject(err) : resolve(rows));
+    });
+    const actionsByType = await new Promise((resolve, reject) => {
+      db.all('SELECT action_type, COUNT(*) AS count FROM user_actions GROUP BY action_type', (err, rows) => err ? reject(err) : resolve(rows));
+    });
+    res.json({ replacementsOverTime, actionsByType });
+  } catch (err) {
+    console.error('Error fetching usage metrics:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get('/api/metrics/real-time', authenticate, async (req, res) => {
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  const recentReplacements = textReplacements.filter(r => new Date(r.timestamp) >= oneHourAgo);
-  
-  const minuteStats = {};
-  recentReplacements.forEach(r => {
-    const minute = new Date(r.timestamp);
-    minute.setSeconds(0, 0);
-    const minuteKey = minute.toISOString().slice(0, 16) + ':00';
-    
-    if (!minuteStats[minuteKey]) {
-      minuteStats[minuteKey] = { replacements: 0, users: new Set() };
-    }
-    minuteStats[minuteKey].replacements++;
-    minuteStats[minuteKey].users.add(r.userId);
-  });
-  
-  const realTime = Object.entries(minuteStats)
-    .map(([minute, stats]) => ({
-      minute,
-      replacements: stats.replacements,
-      unique_users: stats.users.size
-    }))
-    .sort((a, b) => new Date(b.minute) - new Date(a.minute))
-    .slice(0, 60);
-    
-  res.json(realTime);
+app.get('/api/metrics/errors', async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    const recentErrors = await new Promise((resolve, reject) => {
+      db.all('SELECT * FROM errors ORDER BY timestamp DESC LIMIT ?', [limit], (err, rows) => err ? reject(err) : resolve(rows));
+    });
+    const errorTypes = await new Promise((resolve, reject) => {
+      db.all('SELECT error_type, COUNT(*) AS count FROM errors GROUP BY error_type', (err, rows) => err ? reject(err) : resolve(rows));
+    });
+    res.json({ recentErrors, errorTypes });
+  } catch (err) {
+    console.error('Error fetching error metrics:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Start server for local development
-const PORT = process.env.PORT || 3000;
-
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`🚀 AuraText Analytics API Server (Simple) running on http://localhost:${PORT}`);
-    console.log(`📊 Dashboard endpoints available at http://localhost:${PORT}/api/*`);
-    console.log(`🔍 Health check: http://localhost:${PORT}/api/health`);
-    console.log(`💾 Using in-memory storage for testing`);
-  });
-}
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Dashboard API running on port ${PORT}`);
+});
 
 module.exports = app;

@@ -26,7 +26,7 @@ ChartJS.register(
   ArcElement
 );
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://auratext-admin-dashboard-gpbl.vercel.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://auratext-admin-dashboard.vercel.app';
 const API_KEY = 'auratext_secret_key_2024_launch_secure';
 
 function App() {
