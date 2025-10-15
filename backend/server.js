@@ -166,12 +166,12 @@ app.get('/api/metrics/usage', authenticate, async (req, res) => {
     const pool = getPool();
     const result = await pool.query(`
       SELECT 
-        DATE(timestamp) as date,
+        strftime('%Y-%m-%d', timestamp) as date,
         COUNT(*) as replacements,
         COUNT(DISTINCT user_id) as unique_users
       FROM text_replacements 
-      WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-      GROUP BY DATE(timestamp) 
+      WHERE timestamp >= datetime('now', '-30 days')
+      GROUP BY strftime('%Y-%m-%d', timestamp)
       ORDER BY date DESC
     `);
     res.json(result.rows || []);

@@ -69,6 +69,10 @@ function App() {
         axios.get(`${API_BASE_URL}/api/metrics/errors?limit=10`, { headers })
       ]);
       
+      console.log('Overview data:', overviewRes.data);
+      console.log('Usage data:', usageRes.data);
+      console.log('Errors data:', errorsRes.data);
+      
       setOverview(overviewRes.data);
       setUsage(usageRes.data);
       setErrors(errorsRes.data);
@@ -166,10 +170,10 @@ function App() {
 
   // Chart data configurations
   const usageChartData = {
-    labels: usage.map(u => new Date(u.date).toLocaleDateString()),
+    labels: (Array.isArray(usage) ? usage : []).map(u => new Date(u.date).toLocaleDateString()),
     datasets: [{
       label: 'Replacements',
-      data: usage.map(u => u.replacements),
+      data: (Array.isArray(usage) ? usage : []).map(u => u.replacements || 0),
       borderColor: 'rgb(75, 192, 192)',
       backgroundColor: 'rgba(75, 192, 192, 0.2)',
     }]
@@ -184,10 +188,10 @@ function App() {
   };
 
   const appsChartData = {
-    labels: apps.slice(0, 10).map(app => app.target_app || 'Unknown'),
+    labels: (Array.isArray(apps) ? apps : []).slice(0, 10).map(app => app.target_app || 'Unknown'),
     datasets: [{
       label: 'Usage Count',
-      data: apps.slice(0, 10).map(app => app.usage_count || 0),
+      data: (Array.isArray(apps) ? apps : []).slice(0, 10).map(app => app.usage_count || 0),
       backgroundColor: 'rgba(54, 162, 235, 0.8)',
       borderColor: 'rgba(54, 162, 235, 1)',
       borderWidth: 1
@@ -195,10 +199,10 @@ function App() {
   };
 
   const methodsChartData = {
-    labels: methods.map(method => method.method || 'Unknown'),
+    labels: (Array.isArray(methods) ? methods : []).map(method => method.method || 'Unknown'),
     datasets: [{
       label: 'Usage Count',
-      data: methods.map(method => method.usage_count || 0),
+      data: (Array.isArray(methods) ? methods : []).map(method => method.usage_count || 0),
       backgroundColor: 'rgba(255, 206, 86, 0.8)',
       borderColor: 'rgba(255, 206, 86, 1)',
       borderWidth: 1
@@ -206,13 +210,13 @@ function App() {
   };
 
   const realTimeChartData = {
-    labels: realTime.slice(0, 20).map(rt => {
+    labels: (Array.isArray(realTime) ? realTime : []).slice(0, 20).map(rt => {
       const date = new Date(rt.minute);
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }),
     datasets: [{
       label: 'Replacements (Last Hour)',
-      data: realTime.slice(0, 20).map(rt => rt.replacements || 0),
+      data: (Array.isArray(realTime) ? realTime : []).slice(0, 20).map(rt => rt.replacements || 0),
       borderColor: 'rgb(255, 99, 132)',
       backgroundColor: 'rgba(255, 99, 132, 0.2)',
       tension: 0.4
@@ -261,7 +265,7 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user, i) => (
+                  {(Array.isArray(users) ? users : []).map((user, i) => (
                     <tr key={i}>
                       <td>{user.user_id}</td>
                       <td>{user.replacement_count}</td>
@@ -296,7 +300,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {apps.map((app, i) => (
+                    {(Array.isArray(apps) ? apps : []).map((app, i) => (
                       <tr key={i}>
                         <td>{app.target_app || 'Unknown'}</td>
                         <td>{app.usage_count}</td>
@@ -332,7 +336,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {methods.map((method, i) => (
+                    {(Array.isArray(methods) ? methods : []).map((method, i) => (
                       <tr key={i}>
                         <td>{method.method || 'Unknown'}</td>
                         <td>{method.usage_count}</td>
@@ -366,7 +370,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {realTime.slice(0, 30).map((rt, i) => (
+                    {(Array.isArray(realTime) ? realTime : []).slice(0, 30).map((rt, i) => (
                       <tr key={i}>
                         <td>{new Date(rt.minute).toLocaleTimeString()}</td>
                         <td>{rt.replacements}</td>
@@ -384,7 +388,7 @@ function App() {
         return (
           <div className="errors">
             <h3>Recent Errors</h3>
-            {errors.length > 0 ? (
+            {(Array.isArray(errors) ? errors : []).length > 0 ? (
               <div className="table-container">
                 <table>
                   <thead>
@@ -397,7 +401,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {errors.map((err, i) => (
+                    {(Array.isArray(errors) ? errors : []).map((err, i) => (
                       <tr key={i}>
                         <td>{err.error_type}</td>
                         <td>{err.error_message}</td>
