@@ -73,62 +73,24 @@ function App() {
       console.log('Usage data:', usageRes.data);
       console.log('Errors data:', errorsRes.data);
       
-      // Enhanced overview data with realistic numbers
-      const overviewData = overviewRes.data;
-      if (overviewData.totalReplacements === 0) {
-        overviewData.totalReplacements = 1247;
-        overviewData.uniqueUsers = 5;
-        overviewData.totalErrors = 23;
-        overviewData.avgResponseTime = 142;
-        overviewData.successRate = 94.2;
-      }
+      // Use real data from backend
+      setOverview(overviewRes.data);
       
-      setOverview(overviewData);
+      // Use real usage data
+      setUsage(usageRes.data);
       
-      // Enhanced usage data
-      if (usageRes.data.length === 0) {
-        const mockUsage = [];
-        const now = new Date();
-        for (let i = 29; i >= 0; i--) {
-          const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-          mockUsage.push({
-            date: date.toISOString().split('T')[0],
-            replacements: Math.floor(Math.random() * 50) + 20,
-            unique_users: Math.floor(Math.random() * 8) + 2
-          });
-        }
-        setUsage(mockUsage);
-      } else {
-        setUsage(usageRes.data);
-      }
-      
-      // Enhanced errors data
-      if (errorsRes.data.length === 0) {
-        const mockErrors = [
-          { error_type: 'ClipboardError', error_message: 'Failed to access clipboard', user_id: 'user_003', timestamp: new Date(Date.now() - 3600000).toISOString() },
-          { error_type: 'PermissionError', error_message: 'Insufficient permissions', user_id: 'user_005', timestamp: new Date(Date.now() - 7200000).toISOString() },
-          { error_type: 'TimeoutError', error_message: 'Operation timed out', user_id: 'user_001', timestamp: new Date(Date.now() - 10800000).toISOString() }
-        ];
-        setErrors(mockErrors);
-      } else {
-        setErrors(errorsRes.data);
-      }
+      // Use real errors data
+      setErrors(errorsRes.data);
 
-      // Try to fetch optional endpoints with fallbacks
+      // Try to fetch optional endpoints
       try {
         const usersRes = await axios.get(`${API_BASE_URL}/api/metrics/users`, { headers });
         setUsers(usersRes.data);
         setDataStatus(prev => ({ ...prev, users: 'live' }));
       } catch (err) {
-        console.warn('Users endpoint not available, using enhanced mock data');
-        setUsers([
-          { user_id: 'user_001', replacement_count: 245, avg_response_time: 120, last_seen: new Date().toISOString(), os: 'Windows 10', app_version: '1.0.0' },
-          { user_id: 'user_002', replacement_count: 189, avg_response_time: 156, last_seen: new Date(Date.now() - 7200000).toISOString(), os: 'Windows 11', app_version: '1.0.0' },
-          { user_id: 'user_003', replacement_count: 134, avg_response_time: 98, last_seen: new Date(Date.now() - 86400000).toISOString(), os: 'Windows 10', app_version: '1.0.0' },
-          { user_id: 'user_004', replacement_count: 98, avg_response_time: 145, last_seen: new Date(Date.now() - 172800000).toISOString(), os: 'Windows 10', app_version: '1.0.0' },
-          { user_id: 'user_005', replacement_count: 67, avg_response_time: 178, last_seen: new Date(Date.now() - 259200000).toISOString(), os: 'Windows 11', app_version: '1.0.0' }
-        ]);
-        setDataStatus(prev => ({ ...prev, users: 'mock' }));
+        console.warn('Users endpoint not available');
+        setUsers([]);
+        setDataStatus(prev => ({ ...prev, users: 'unavailable' }));
       }
 
       try {
@@ -136,16 +98,9 @@ function App() {
         setApps(appsRes.data);
         setDataStatus(prev => ({ ...prev, apps: 'live' }));
       } catch (err) {
-        console.warn('Apps endpoint not available, using enhanced mock data');
-        setApps([
-          { target_app: 'notepad.exe', usage_count: 456, unique_users: 23, avg_response_time: 120, success_rate: 94.5 },
-          { target_app: 'WINWORD.EXE', usage_count: 389, unique_users: 18, avg_response_time: 145, success_rate: 91.2 },
-          { target_app: 'EXCEL.EXE', usage_count: 234, unique_users: 12, avg_response_time: 167, success_rate: 88.9 },
-          { target_app: 'chrome.exe', usage_count: 198, unique_users: 15, avg_response_time: 134, success_rate: 92.8 },
-          { target_app: 'firefox.exe', usage_count: 156, unique_users: 11, avg_response_time: 142, success_rate: 89.7 },
-          { target_app: 'code.exe', usage_count: 123, unique_users: 8, avg_response_time: 178, success_rate: 87.3 }
-        ]);
-        setDataStatus(prev => ({ ...prev, apps: 'mock' }));
+        console.warn('Apps endpoint not available');
+        setApps([]);
+        setDataStatus(prev => ({ ...prev, apps: 'unavailable' }));
       }
 
       try {
@@ -153,16 +108,9 @@ function App() {
         setMethods(methodsRes.data);
         setDataStatus(prev => ({ ...prev, methods: 'live' }));
       } catch (err) {
-        console.warn('Methods endpoint not available, using enhanced mock data');
-        setMethods([
-          { method: 'Win32DirectReplacer', usage_count: 567, avg_response_time: 120, success_rate: 95.2 },
-          { method: 'TextPatternReplacer', usage_count: 423, avg_response_time: 145, success_rate: 92.1 },
-          { method: 'ClipboardReplacer', usage_count: 189, avg_response_time: 98, success_rate: 88.5 },
-          { method: 'SendKeysReplacer', usage_count: 156, avg_response_time: 167, success_rate: 85.3 },
-          { method: 'UIAutomationReplacer', usage_count: 98, avg_response_time: 198, success_rate: 82.7 },
-          { method: 'AccessibilityReplacer', usage_count: 67, avg_response_time: 234, success_rate: 79.1 }
-        ]);
-        setDataStatus(prev => ({ ...prev, methods: 'mock' }));
+        console.warn('Methods endpoint not available');
+        setMethods([]);
+        setDataStatus(prev => ({ ...prev, methods: 'unavailable' }));
       }
 
       try {
@@ -170,22 +118,9 @@ function App() {
         setRealTime(realTimeRes.data);
         setDataStatus(prev => ({ ...prev, realTime: 'live' }));
       } catch (err) {
-        console.warn('Real-time endpoint not available, using enhanced mock data');
-        const mockRealTime = [];
-        const now = new Date();
-        for (let i = 59; i >= 0; i--) {
-          const minute = new Date(now.getTime() - i * 60000);
-          // More realistic data with patterns
-          const baseActivity = Math.sin((i / 60) * Math.PI) * 5 + 3;
-          const randomFactor = Math.random() * 3;
-          mockRealTime.push({
-            minute: minute.toISOString().slice(0, 16) + ':00',
-            replacements: Math.max(0, Math.floor(baseActivity + randomFactor)),
-            unique_users: Math.max(1, Math.floor(baseActivity / 2 + Math.random() * 2))
-          });
-        }
-        setRealTime(mockRealTime);
-        setDataStatus(prev => ({ ...prev, realTime: 'mock' }));
+        console.warn('Real-time endpoint not available');
+        setRealTime([]);
+        setDataStatus(prev => ({ ...prev, realTime: 'unavailable' }));
       }
 
       setLoading(false);
@@ -302,133 +237,167 @@ function App() {
         return (
           <div className="data-table">
             <h3>Top Users</h3>
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>User ID</th>
-                    <th>Replacements</th>
-                    <th>Avg Response Time</th>
-                    <th>Last Seen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(Array.isArray(users) ? users : []).map((user, i) => (
-                    <tr key={i}>
-                      <td>{user.user_id}</td>
-                      <td>{user.replacement_count}</td>
-                      <td>{Math.round(user.avg_response_time || 0)}ms</td>
-                      <td>{new Date(user.last_seen).toLocaleString()}</td>
+            {(Array.isArray(users) ? users : []).length > 0 ? (
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>User ID</th>
+                      <th>Replacements</th>
+                      <th>Avg Response Time</th>
+                      <th>Last Seen</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {(Array.isArray(users) ? users : []).map((user, i) => (
+                      <tr key={i}>
+                        <td>{user.user_id}</td>
+                        <td>{user.replacement_count}</td>
+                        <td>{Math.round(user.avg_response_time || 0)}ms</td>
+                        <td>{new Date(user.last_seen).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <p>📊 No user data available yet</p>
+                <p>Users will appear here once they start using AuraText</p>
+              </div>
+            )}
           </div>
         );
       
       case 'apps':
         return (
           <div className="charts">
-            <div className="chart-container">
-              <h3>App Usage Statistics</h3>
-              <Bar data={appsChartData} options={{ responsive: true }} />
-            </div>
-            <div className="data-table">
-              <h3>Detailed App Analytics</h3>
-              <div className="table-container">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Target App</th>
-                      <th>Usage Count</th>
-                      <th>Unique Users</th>
-                      <th>Avg Response Time</th>
-                      <th>Success Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(Array.isArray(apps) ? apps : []).map((app, i) => (
-                      <tr key={i}>
-                        <td>{app.target_app || 'Unknown'}</td>
-                        <td>{app.usage_count}</td>
-                        <td>{app.unique_users}</td>
-                        <td>{Math.round(app.avg_response_time || 0)}ms</td>
-                        <td>{Math.round(app.success_rate || 0)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {(Array.isArray(apps) ? apps : []).length > 0 ? (
+              <>
+                <div className="chart-container">
+                  <h3>App Usage Statistics</h3>
+                  <Bar data={appsChartData} options={{ responsive: true }} />
+                </div>
+                <div className="data-table">
+                  <h3>Detailed App Analytics</h3>
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Target App</th>
+                          <th>Usage Count</th>
+                          <th>Unique Users</th>
+                          <th>Avg Response Time</th>
+                          <th>Success Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(Array.isArray(apps) ? apps : []).map((app, i) => (
+                          <tr key={i}>
+                            <td>{app.target_app || 'Unknown'}</td>
+                            <td>{app.usage_count}</td>
+                            <td>{app.unique_users}</td>
+                            <td>{Math.round(app.avg_response_time || 0)}ms</td>
+                            <td>{Math.round(app.success_rate || 0)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">
+                <p>📱 No app data available yet</p>
+                <p>App usage statistics will appear here once users start using AuraText with different applications</p>
               </div>
-            </div>
+            )}
           </div>
         );
       
       case 'methods':
         return (
           <div className="charts">
-            <div className="chart-container">
-              <h3>Method Usage Statistics</h3>
-              <Bar data={methodsChartData} options={{ responsive: true }} />
-            </div>
-            <div className="data-table">
-              <h3>Detailed Method Analytics</h3>
-              <div className="table-container">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Method</th>
-                      <th>Usage Count</th>
-                      <th>Avg Response Time</th>
-                      <th>Success Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(Array.isArray(methods) ? methods : []).map((method, i) => (
-                      <tr key={i}>
-                        <td>{method.method || 'Unknown'}</td>
-                        <td>{method.usage_count}</td>
-                        <td>{Math.round(method.avg_response_time || 0)}ms</td>
-                        <td>{Math.round(method.success_rate || 0)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {(Array.isArray(methods) ? methods : []).length > 0 ? (
+              <>
+                <div className="chart-container">
+                  <h3>Method Usage Statistics</h3>
+                  <Bar data={methodsChartData} options={{ responsive: true }} />
+                </div>
+                <div className="data-table">
+                  <h3>Detailed Method Analytics</h3>
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Method</th>
+                          <th>Usage Count</th>
+                          <th>Avg Response Time</th>
+                          <th>Success Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(Array.isArray(methods) ? methods : []).map((method, i) => (
+                          <tr key={i}>
+                            <td>{method.method || 'Unknown'}</td>
+                            <td>{method.usage_count}</td>
+                            <td>{Math.round(method.avg_response_time || 0)}ms</td>
+                            <td>{Math.round(method.success_rate || 0)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">
+                <p>🔧 No method data available yet</p>
+                <p>Text replacement method statistics will appear here once users start using AuraText</p>
               </div>
-            </div>
+            )}
           </div>
         );
       
       case 'realtime':
         return (
           <div className="charts">
-            <div className="chart-container">
-              <h3>Real-time Activity (Last Hour)</h3>
-              <Line data={realTimeChartData} options={{ responsive: true }} />
-            </div>
-            <div className="data-table">
-              <h3>Minute-by-Minute Activity</h3>
-              <div className="table-container">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Time</th>
-                      <th>Replacements</th>
-                      <th>Unique Users</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(Array.isArray(realTime) ? realTime : []).slice(0, 30).map((rt, i) => (
-                      <tr key={i}>
-                        <td>{new Date(rt.minute).toLocaleTimeString()}</td>
-                        <td>{rt.replacements}</td>
-                        <td>{rt.unique_users}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {(Array.isArray(realTime) ? realTime : []).length > 0 ? (
+              <>
+                <div className="chart-container">
+                  <h3>Real-time Activity (Last Hour)</h3>
+                  <Line data={realTimeChartData} options={{ responsive: true }} />
+                </div>
+                <div className="data-table">
+                  <h3>Minute-by-Minute Activity</h3>
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Time</th>
+                          <th>Replacements</th>
+                          <th>Unique Users</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(Array.isArray(realTime) ? realTime : []).slice(0, 30).map((rt, i) => (
+                          <tr key={i}>
+                            <td>{new Date(rt.minute).toLocaleTimeString()}</td>
+                            <td>{rt.replacements}</td>
+                            <td>{rt.unique_users}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">
+                <p>⚡ No real-time data available yet</p>
+                <p>Live activity data will appear here once users start using AuraText</p>
               </div>
-            </div>
+            )}
           </div>
         );
       
@@ -511,7 +480,7 @@ function App() {
         </div>
         <div className="card">
           <h3>Success Rate</h3>
-          <div className="metric">{overview.successRate?.toFixed(1) || '94.2'}%</div>
+          <div className="metric">{overview.successRate ? overview.successRate.toFixed(1) + '%' : '0%'}</div>
         </div>
       </div>
 

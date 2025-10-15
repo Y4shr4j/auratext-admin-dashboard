@@ -141,6 +141,26 @@ header h1 {
   100% { transform: rotate(360deg); }
 }
 
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+  background: #f8f9fa;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+.empty-state p {
+  margin: 10px 0;
+  font-size: 16px;
+}
+
+.empty-state p:first-child {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
 /* Tabs */
 .tabs {
   display: flex;
