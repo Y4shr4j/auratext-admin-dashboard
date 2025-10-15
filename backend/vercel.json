@@ -3,14 +3,14 @@
   "name": "auratext-admin-backend",
   "builds": [
     {
-      "src": "server-simple.js",
+      "src": "api/index.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "server-simple.js"
+      "dest": "api/index.js"
     }
   ],
   "env": {
